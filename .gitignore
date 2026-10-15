@@ -1,0 +1,6 @@
+/bazel-*
+/user.bazelrc
+hosts/rust/target/
+__pycache__/
+*.pyc
+.venv/

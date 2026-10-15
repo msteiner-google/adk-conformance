@@ -1,0 +1,34 @@
+load("@rules_python//python:py_library.bzl", "py_library")
+load("@rules_python//python:py_test.bzl", "py_test")
+
+py_library(
+    name = "harness",
+    srcs = [
+        "__init__.py",
+        "adk_client.py",
+        "paths.py",
+        "runner.py",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//model_server:server",
+        "@pip//pyyaml",
+    ],
+)
+
+# Entry point used by the generated conformance tests (tools/bazel/conformance.bzl).
+exports_files(["run_scenario.py"])
+
+py_test(
+    name = "paths_test",
+    size = "small",
+    srcs = ["paths_test.py"],
+    deps = [":harness"],
+)
+
+py_test(
+    name = "adk_client_test",
+    size = "small",
+    srcs = ["adk_client_test.py"],
+    deps = [":harness"],
+)

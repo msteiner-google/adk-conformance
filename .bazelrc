@@ -1,0 +1,19 @@
+# adk-monitor Bazel configuration.
+common --enable_platform_specific_config
+
+# Packages carry explicit __init__.py files.
+common --incompatible_default_to_explicit_init_py
+
+# Hermetic actions: no host env leaks into the cache key.
+build --incompatible_strict_action_env
+
+# Deterministic tests only talk to localhost (hosts + scripted model server).
+build --sandbox_default_allow_network=false
+
+test --test_output=errors
+test --test_summary=terse
+
+# Live-LLM tests (M4) will run under --config=live, which passes the key by name only:
+# test:live --test_env=GOOGLE_API_KEY
+
+try-import %workspace%/user.bazelrc

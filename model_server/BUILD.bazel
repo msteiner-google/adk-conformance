@@ -1,0 +1,27 @@
+load("@rules_python//python:py_binary.bzl", "py_binary")
+load("@rules_python//python:py_library.bzl", "py_library")
+load("@rules_python//python:py_test.bzl", "py_test")
+
+py_library(
+    name = "server",
+    srcs = [
+        "__init__.py",
+        "server.py",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+# Standalone server: bazel run //model_server -- --script path/to/script.yaml
+py_binary(
+    name = "model_server",
+    srcs = ["server.py"],
+    main = "server.py",
+    deps = ["@pip//pyyaml"],
+)
+
+py_test(
+    name = "server_test",
+    size = "small",
+    srcs = ["server_test.py"],
+    deps = [":server"],
+)

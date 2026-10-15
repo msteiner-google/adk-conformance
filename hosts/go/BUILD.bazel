@@ -1,0 +1,21 @@
+load("@rules_go//go:def.bzl", "go_binary")
+
+# Go ADK host: serves the hello_agent fixture through adk-go's own REST API (/api).
+go_binary(
+    name = "host",
+    srcs = ["main.go"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "@org_golang_google_adk_v2//agent",
+        "@org_golang_google_adk_v2//agent/llmagent",
+        "@org_golang_google_adk_v2//artifact",
+        "@org_golang_google_adk_v2//cmd/launcher",
+        "@org_golang_google_adk_v2//cmd/launcher/universal",
+        "@org_golang_google_adk_v2//cmd/launcher/web",
+        "@org_golang_google_adk_v2//cmd/launcher/web/api",
+        "@org_golang_google_adk_v2//memory",
+        "@org_golang_google_adk_v2//model/gemini",
+        "@org_golang_google_adk_v2//session",
+        "@org_golang_google_genai//:genai",
+    ],
+)

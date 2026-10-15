@@ -1,0 +1,36 @@
+# The smallest end-to-end scenario: one user turn, one scripted model reply.
+id: hello_world_001
+description: >
+  A single LlmAgent answers one user message. The SDK must send exactly one
+  LLM request containing the user's text, and stream back one final event,
+  authored by the agent, that carries the scripted reply.
+behaviors: [AGT-001, EVT-003, EVT-006, API-003, API-009]
+fixture: hello_agent
+
+model_script:
+  - when: {turn: 1}
+    reply: {text: "Hello from the scripted model!"}
+
+steps:
+  - name: create session
+    adk.create_session: {app: hello_agent, user: u1}
+    save_as: session
+    expect:
+      status: 200
+      body.id: {regex: ".+"}
+
+  - name: one user turn over SSE
+    adk.run_sse:
+      app: hello_agent
+      user: u1
+      session: "{{session.body.id}}"
+      text: "Say hello"
+    expect:
+      status: 200
+      content_type: {contains: "text/event-stream"}
+      final.author: hello_agent
+      final.content.parts[0].text: "Hello from the scripted model!"
+
+expect_llm:
+  request_count: 1
+  requests[0].body.contents[-1].parts[0].text: "Say hello"

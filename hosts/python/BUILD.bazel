@@ -1,0 +1,15 @@
+load("@rules_python//python:py_binary.bzl", "py_binary")
+
+# Python ADK host: serves the hello_agent fixture through google-adk's own API server.
+# The fixture agents are loaded by ADK's agent loader from fixtures/ at runtime.
+py_binary(
+    name = "host",
+    srcs = ["host.py"],
+    data = glob(["fixtures/**/*.py"]),
+    main = "host.py",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@pip//google_adk",
+        "@pip//uvicorn",
+    ],
+)

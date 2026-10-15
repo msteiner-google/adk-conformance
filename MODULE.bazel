@@ -1,0 +1,59 @@
+"""adk-monitor: cross-language conformance for ADK and A2A SDKs."""
+
+module(name = "adk_monitor")
+
+bazel_dep(name = "platforms", version = "1.1.0")
+bazel_dep(name = "bazel_skylib", version = "1.9.2")
+
+# --- Python: harness, scripted model server, Python ADK host -----------------
+bazel_dep(name = "rules_python", version = "2.4.2")
+
+python = use_extension("@rules_python//python/extensions:python.bzl", "python")
+python.toolchain(
+    is_default = True,
+    python_version = "3.13",
+)
+
+pip = use_extension("@rules_python//python/extensions:pip.bzl", "pip")
+pip.parse(
+    hub_name = "pip",
+    python_version = "3.13",
+    requirements_lock = "//third_party/python:requirements_lock.txt",
+)
+use_repo(pip, "pip")
+
+# --- Go: Go ADK host ------------------------------------------------------------
+bazel_dep(name = "rules_go", version = "0.64.2")
+bazel_dep(name = "gazelle", version = "0.54.0")
+
+go_sdk = use_extension("@rules_go//go:extensions.bzl", "go_sdk")
+go_sdk.from_file(go_mod = "//:go.mod")
+
+go_deps = use_extension("@gazelle//:extensions.bzl", "go_deps")
+go_deps.from_file(go_mod = "//:go.mod")
+use_repo(
+    go_deps,
+    "org_golang_google_adk_v2",
+    "org_golang_google_genai",
+)
+
+# --- Rust: Rust ADK host (community adk-rust) -------------------------------------
+bazel_dep(name = "rules_rust", version = "0.74.0")
+
+rust = use_extension("@rules_rust//rust:extensions.bzl", "rust")
+rust.toolchain(
+    edition = "2024",
+    versions = ["1.98.0"],
+)
+use_repo(rust, "rust_toolchains")
+
+register_toolchains("@rust_toolchains//:all")
+
+crate = use_extension("@rules_rust//crate_universe:extensions.bzl", "crate")
+crate.from_cargo(
+    name = "crates",
+    cargo_lockfile = "//hosts/rust:Cargo.lock",
+    manifests = ["//hosts/rust:Cargo.toml"],
+    supported_platform_triples = ["x86_64-unknown-linux-gnu"],
+)
+use_repo(crate, "crates")
