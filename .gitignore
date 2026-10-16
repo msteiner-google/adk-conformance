@@ -4,7 +4,4 @@ hosts/rust/target/
 __pycache__/
 *.pyc
 .venv/
-deploy/terraform/.terraform/
-deploy/terraform/*.tfstate*
-deploy/terraform/terraform.tfvars
 /out/

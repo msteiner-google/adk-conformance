@@ -18,8 +18,8 @@ Design doc: <https://docs.google.com/document/d/17Az5DdRkVcSm5RWNCr43ZdadbuPJA_W
 - Every host serves the 8 fixtures in [`fixtures/FIXTURES.md`](fixtures/FIXTURES.md).
 - 16 confirmed SDK differences are recorded in [`known_divergences.yaml`](known_divergences.yaml)
   (they report XFAIL); the comparison report lists every other divergence.
-- Nightly runs on GCP via Cloud Build + Cloud Scheduler, results in Firestore
-  (see [Running on GCP](#running-on-gcp)).
+- Run everything locally with `tools/run_pipeline.sh` and read
+  `out/report/report.md` (see [Running the pipeline](#running-the-pipeline)).
 
 Java and TypeScript join in M5, once their ADKs speak A2A v1.
 
@@ -29,7 +29,7 @@ Java and TypeScript join in M5, once their ADKs speak A2A v1.
 bazel test //...                                   # all scenarios on all SDKs
 bazel test //scenarios/tool:tool_roundtrip_001_go  # one scenario on one SDK
 python3 -m harness.compare --in bazel-testlogs --out /tmp/report   # cross-SDK report
-CHANNEL=release ci/nightly.sh                      # what the nightly job runs
+tools/run_pipeline.sh                              # all tests + report in out/report/
 ```
 
 Each conformance test writes a transcript (HTTP exchanges, SSE events, and the
@@ -61,9 +61,8 @@ format differences separately.
 | `model_server/` | Scripted Gemini-compatible server. Answers from the scenario's `model_script` and records every LLM request. |
 | `fixtures/FIXTURES.md` | Canonical spec of the fixture agents every host serves. |
 | `known_divergences.yaml` | Confirmed SDK differences (XFAIL), each with a reason and expiry. |
-| `ci/nightly.sh` | One monitoring run: optional SDK bump, all tests, compare, publish. |
-| `deploy/` | Runner image, Terraform, and deploy scripts for GCP. |
-| `tools/` | `sdk_versions.py`, `bump_sdks.py` (latest channel), `publish_results.py` (GCS + Firestore). |
+| `tools/run_pipeline.sh` | One monitoring run: optional SDK bump, all tests, cross-SDK report. |
+| `tools/` | Also `sdk_versions.py` (versions from lock files) and `bump_sdks.py` (move SDKs to their latest releases). |
 | `hosts/<lang>/` | One thin host per SDK. Serves the fixture agent through the SDK's own ADK API server. |
 | `tools/bazel/` | `conformance_suite()` macro and the subject table (`subjects.bzl`). |
 | `third_party/python/` | Python dependency lock (`requirements_lock.txt`). |
@@ -123,33 +122,37 @@ differently (not a scenario or fixture bug), add an entry to
 one-line reason, and an expiry date. `//:known_divergences_lint` validates the
 file.
 
-## Running on GCP
-
-One-time setup (and re-run after infrastructure changes):
+## Running the pipeline
 
 ```sh
-deploy/deploy.sh <project-id> [region]
+tools/run_pipeline.sh            # pinned SDK versions (the lock files)
+tools/run_pipeline.sh --latest   # first move every SDK to its newest release
+tools/run_pipeline.sh --fresh    # ignore Bazel's cached test results
 ```
 
-This applies `deploy/terraform` (APIs, Artifact Registry, three buckets, a
-named Firestore database `adk-monitor`, two service accounts, a Cloud
-Scheduler job), builds the runner image with Cloud Build, and uploads the
-source tarball. From then on Cloud Scheduler starts a Cloud Build run every
-night (04:00 UTC by default, channel `latest`), which needs nothing from your
-machine:
+A cold run takes about 15 minutes (mostly compiling the Rust host); later
+runs only rebuild what changed. Output, in `out/` (or `--out DIR`):
 
-1. Moves each SDK to its latest release (`tools/bump_sdks.py`).
-2. Runs `bazel test //...` (Bazel remote cache in GCS).
-3. Builds the comparison report.
-4. Publishes to GCS (`gs://<project>-adk-monitor-results/runs/<run_id>/`) and
-   Firestore: `runs/{run_id}`, `runs/{run_id}/results/{scenario.subject}`, and
-   `findings/{fingerprint}` (first/last seen, seen count).
+| File | Contents |
+|---|---|
+| `report/report.md` | The report to read: run metadata and SDK versions, a status summary per subject, the scenario × subject matrix, failures, recurring differences (root causes first), and every divergence. |
+| `report/report.json` | The same data, machine-readable: `meta`, `counts`, `matrix`, `recurring`, `findings` (each with a stable `fingerprint`). Easier to parse than the markdown. |
+| `meta.json`, `versions.json`, `bump.json` | Run metadata, resolved SDK versions, and what `--latest` changed. |
 
-Start a run immediately: `terraform -chdir=deploy/terraform output -raw run_now`.
+Per-test transcripts stay under `bazel-testlogs/scenarios/` until the next run.
 
-The depot repository is not reachable from GCP, so the cloud runs build the
-uploaded tarball. After changing scenarios or hosts, run
-`deploy/push_source.sh <source-bucket>` (it archives `HEAD`).
+`--latest` rewrites the lock files in place: review with `git diff`, commit
+them to adopt the new versions, or `git restore` them. Major-version jumps
+(for example adk-go v3) are never taken automatically.
+
+### Acting on the report
+
+- **FAIL** in the matrix: a new difference or a regression. Read the
+  transcript, then fix the scenario/fixture, or record the SDK difference in
+  `known_divergences.yaml`.
+- **XPASS**: an SDK fixed a known divergence; delete its entry.
+- **Recurring differences / Divergences**: candidates for upstream issues,
+  grouped by root cause. The odd one out is usually the SDK to report to.
 
 ## Updating dependencies
 

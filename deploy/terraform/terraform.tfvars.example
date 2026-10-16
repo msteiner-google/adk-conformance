@@ -1,4 +1,0 @@
-project_id = "my-gcp-project"
-# region           = "us-central1"
-# channel          = "latest"     # or "release" to run the pinned lock files
-# schedule         = "0 4 * * *"
