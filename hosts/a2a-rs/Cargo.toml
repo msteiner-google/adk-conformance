@@ -1,0 +1,25 @@
+[package]
+name = "adk-monitor-a2a-rs-host"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[[bin]]
+name = "host"
+path = "src/main.rs"
+
+[dependencies]
+# Official A2A Rust SDK (a2aproject/a2a-rs), exact pins: a2a-lf (types),
+# a2a-server-lf (server: request handler, task store, JSON-RPC/REST/card routers).
+# No TLS features: the host only speaks plain HTTP on 127.0.0.1.
+a2a = { package = "a2a-lf", version = "=0.4.1" }
+a2a-server = { package = "a2a-server-lf", version = "=0.5.2", default-features = false }
+
+async-stream = "0.3"
+axum = { version = "0.8", default-features = false, features = ["tokio", "http1"] }
+futures = "0.3"
+reqwest = { version = "0.13", default-features = false, features = ["json"] }
+serde_json = "1"
+tokio = { version = "1", features = ["rt-multi-thread", "net", "signal", "sync", "macros", "time"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", default-features = false, features = ["fmt", "env-filter"] }

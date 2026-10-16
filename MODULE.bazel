@@ -33,11 +33,12 @@ go_deps = use_extension("@gazelle//:extensions.bzl", "go_deps")
 go_deps.from_file(go_mod = "//:go.mod")
 use_repo(
     go_deps,
+    "com_github_a2aproject_a2a_go_v2",
     "org_golang_google_adk_v2",
     "org_golang_google_genai",
 )
 
-# --- Rust: Rust ADK host (community adk-rust) -------------------------------------
+# --- Rust: Rust ADK host (community adk-rust) + bare a2a-rs host -----------------
 bazel_dep(name = "rules_rust", version = "0.74.0")
 
 rust = use_extension("@rules_rust//rust:extensions.bzl", "rust")
@@ -56,4 +57,30 @@ crate.from_cargo(
     manifests = ["//hosts/rust:Cargo.toml"],
     supported_platform_triples = ["x86_64-unknown-linux-gnu"],
 )
-use_repo(crate, "crates")
+
+# Bare a2a-rs host (hosts/BARE_HOSTS.md): the official A2A Rust SDK, own lockfile.
+crate.from_cargo(
+    name = "crates_a2a_rs",
+    cargo_lockfile = "//hosts/a2a-rs:Cargo.lock",
+    manifests = ["//hosts/a2a-rs:Cargo.toml"],
+    supported_platform_triples = ["x86_64-unknown-linux-gnu"],
+)
+
+# a2a-pb's build script runs protoc from protoc-bin-vendored, which locates the
+# binary through a compile-time CARGO_MANIFEST_DIR that does not exist in the
+# build-script sandbox. Hand it the vendored protoc via PROTOC instead
+# ($(execpath) in build_script_env is made absolute by rules_rust).
+_A2A_RS_PROTOC = "@crates_a2a_rs__protoc-bin-vendored-linux-x86_64-3.3.0//:bin/protoc"
+
+crate.annotation(
+    additive_build_file_content = 'exports_files(["bin/protoc"])',
+    crate = "protoc-bin-vendored-linux-x86_64",
+    repositories = ["crates_a2a_rs"],
+)
+crate.annotation(
+    build_script_data = [_A2A_RS_PROTOC],
+    build_script_env = {"PROTOC": "$(execpath %s)" % _A2A_RS_PROTOC},
+    crate = "a2a-pb",
+    repositories = ["crates_a2a_rs"],
+)
+use_repo(crate, "crates", "crates_a2a_rs")

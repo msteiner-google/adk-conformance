@@ -2,6 +2,14 @@
 //! separate app (app name == root agent name) through adk-server's own REST API
 //! server (`adk_server::create_app`, routes under `/api`), using the SDK's
 //! `MultiAgentLoader`.
+//!
+//! A2A (host contract, M2):
+//! - `--a2a-port N --a2a-app NAME`: also serve fixture NAME (a fresh agent tree)
+//!   over A2A v1.0 on 127.0.0.1:N, assembled from adk-server's `a2a::v1`
+//!   components (see a2a.rs): card at /.well-known/agent-card.json, JSON-RPC at
+//!   /, HTTP+JSON at /rest.
+//! - `--remote-a2a-url URL`: base URL of the remote A2A agent the remote_agent
+//!   and remote_transfer_agent fixtures call (placeholder when absent).
 
 use std::net::{Ipv4Addr, SocketAddr};
 use std::process::ExitCode;
@@ -13,6 +21,7 @@ use adk_model::GeminiModel;
 use adk_server::{ServerConfig, create_app, shutdown_signal};
 use adk_session::InMemorySessionService;
 
+mod a2a;
 mod fixtures;
 mod tools;
 
@@ -22,11 +31,22 @@ const API_KEY: &str = "scripted-key";
 struct Args {
     http_port: u16,
     model_base_url: String,
+    a2a_port: Option<u16>,
+    a2a_app: Option<String>,
+    remote_a2a_url: Option<String>,
+}
+
+fn parse_port(name: &str, v: &str) -> Result<u16, String> {
+    v.parse::<u16>()
+        .map_err(|e| format!("invalid {name} {v:?}: {e}"))
 }
 
 fn parse_args() -> Result<Args, String> {
     let mut http_port = None;
     let mut model_base_url = None;
+    let mut a2a_port = None;
+    let mut a2a_app = None;
+    let mut remote_a2a_url = None;
     let mut it = std::env::args().skip(1);
     while let Some(arg) = it.next() {
         let (flag, inline) = match arg.split_once('=') {
@@ -48,12 +68,21 @@ fn parse_args() -> Result<Args, String> {
                 );
             }
             "--model-base-url" => model_base_url = Some(value("--model-base-url")?),
+            "--a2a-port" => a2a_port = Some(parse_port("--a2a-port", &value("--a2a-port")?)?),
+            "--a2a-app" => a2a_app = Some(value("--a2a-app")?),
+            "--remote-a2a-url" => remote_a2a_url = Some(value("--remote-a2a-url")?),
             other => eprintln!("host: ignoring unknown argument {other:?}"),
         }
+    }
+    if a2a_port.is_some() != a2a_app.is_some() {
+        return Err("--a2a-port and --a2a-app go together".to_string());
     }
     Ok(Args {
         http_port: http_port.ok_or("--http-port is required")?,
         model_base_url: model_base_url.ok_or("--model-base-url is required")?,
+        a2a_port,
+        a2a_app,
+        remote_a2a_url,
     })
 }
 
@@ -77,7 +106,8 @@ async fn run(args: Args) -> Result<(), String> {
 
     let model: Arc<dyn Llm> = Arc::new(model);
 
-    let agents = fixtures::all(model)?;
+    let remote_card = a2a::remote_card(args.remote_a2a_url.as_deref()).await;
+    let agents = fixtures::all(model.clone(), &remote_card)?;
     let names: Vec<String> = agents.iter().map(|a| a.name().to_string()).collect();
     let loader =
         MultiAgentLoader::new(agents).map_err(|e| format!("failed to create agent loader: {e}"))?;
@@ -92,11 +122,42 @@ async fn run(args: Args) -> Result<(), String> {
         .await
         .map_err(|e| format!("failed to bind {addr}: {e}"))?;
     tracing::info!("ADK REST API listening on http://{addr}/api (apps {names:?})");
+    let rest = async {
+        axum::serve(listener, app)
+            .with_graceful_shutdown(shutdown_signal())
+            .await
+            .map_err(|e| format!("server error: {e}"))
+    };
 
-    axum::serve(listener, app)
-        .with_graceful_shutdown(shutdown_signal())
+    let (Some(a2a_port), Some(a2a_app)) = (args.a2a_port, args.a2a_app) else {
+        return rest.await;
+    };
+    // A fresh agent tree for the A2A side, so it shares no state with the REST apps.
+    let agent = fixtures::all(model, &remote_card)?
+        .into_iter()
+        .find(|a| a.name() == a2a_app)
+        .ok_or_else(|| format!("--a2a-app: unknown fixture {a2a_app:?} (apps {names:?})"))?;
+    let a2a_addr = SocketAddr::from((Ipv4Addr::LOCALHOST, a2a_port));
+    let base = format!("http://{a2a_addr}");
+    let a2a_listener = tokio::net::TcpListener::bind(a2a_addr)
         .await
-        .map_err(|e| format!("server error: {e}"))
+        .map_err(|e| format!("failed to bind {a2a_addr}: {e}"))?;
+    let a2a_router = a2a::router(&a2a_app, agent, &base);
+    tracing::info!(
+        "A2A v1 server for {a2a_app} listening on {base}/ (card {base}{})",
+        a2a::CARD_PATH
+    );
+    let a2a = async {
+        axum::serve(a2a_listener, a2a_router)
+            .with_graceful_shutdown(shutdown_signal())
+            .await
+            .map_err(|e| format!("A2A server error: {e}"))
+    };
+    // Either server stopping (signal or error) ends the process.
+    tokio::select! {
+        r = rest => r,
+        r = a2a => r,
+    }
 }
 
 fn main() -> ExitCode {
@@ -112,7 +173,9 @@ fn main() -> ExitCode {
         Ok(args) => args,
         Err(e) => {
             eprintln!("host: {e}");
-            eprintln!("usage: host --http-port N --model-base-url URL");
+            eprintln!(
+                "usage: host --http-port N --model-base-url URL [--a2a-port N --a2a-app NAME] [--remote-a2a-url URL]"
+            );
             return ExitCode::from(2);
         }
     };

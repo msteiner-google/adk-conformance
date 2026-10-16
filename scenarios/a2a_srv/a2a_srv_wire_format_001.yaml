@@ -1,0 +1,25 @@
+id: a2a_srv_wire_format_001
+area: a2a-srv
+description: >
+  v1 responses use SCREAMING_SNAKE enum values (TASK_STATE_*, ROLE_*), no
+  0.3 `kind` discriminator, and wrap results in the v1 oneof ({"task": ...},
+  {"statusUpdate": ...}), on SendMessage and on SendStreamingMessage.
+behaviors: [A2A-SRV-032]
+a2a: {app: hello_agent}
+model_script:
+  - reply: {text: "Hello from the scripted model!"}
+steps:
+  - name: send
+    a2a.send_message: {text: "Say hello"}
+    expect:
+      format.enum_style: v1
+      format.kind_field: false
+      format.key_style: {in: [camelCase, none]}
+      format.result_shape: oneof
+  - name: stream
+    a2a.stream: {text: "Say hello"}
+    expect:
+      format.enum_style: v1
+      format.kind_field: false
+      format.key_style: {in: [camelCase, none]}
+      format.result_shape: oneof

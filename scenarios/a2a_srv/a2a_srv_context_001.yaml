@@ -1,0 +1,30 @@
+id: a2a_srv_context_001
+area: a2a-srv
+description: >
+  A message without a contextId gets a server-generated one. A follow-up with
+  that contextId continues the same conversation: the agent's second LLM
+  request carries the first turn as history.
+behaviors: [A2A-SRV-013, A2A-SRV-014]
+a2a: {app: hello_agent}
+model_script:
+  - when: {turn: 1}
+    reply: {text: "First answer."}
+  - when: {turn: 2}
+    reply: {text: "Second answer."}
+steps:
+  - name: first
+    a2a.send_message: {text: "First question"}
+    save_as: first
+    expect:
+      context_id: {regex: ".+"}
+      state: TASK_STATE_COMPLETED
+  - name: second
+    a2a.send_message: {text: "Second question", context_id: "{{first.context_id}}"}
+    expect:
+      context_id: "{{first.context_id}}"
+      state: TASK_STATE_COMPLETED
+      result: {contains: "Second answer."}
+expect_llm:
+  request_count: 2
+  requests[1].body: {contains: "First question"}
+  requests[1].body.contents: {contains: "First answer."}

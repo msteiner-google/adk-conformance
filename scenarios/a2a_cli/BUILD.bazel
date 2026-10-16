@@ -1,0 +1,7 @@
+load("//tools/bazel:conformance.bzl", "a2a_client_suite")
+
+# A2A client scenarios: every ADK client against every ADK server.
+a2a_client_suite(
+    name = "a2a_cli",
+    scenarios = glob(["*.yaml"]),
+)

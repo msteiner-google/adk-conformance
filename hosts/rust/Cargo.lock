@@ -3,6 +3,16 @@
 version = 4
 
 [[package]]
+name = "a2a-protocol-types"
+version = "0.12.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2f57bddf2515adc4c3f9b0229bdbbce379d08a9c41a208dca2e630b9d9f8ce1d"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "adk-agent"
 version = "2.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -107,10 +117,12 @@ dependencies = [
 name = "adk-monitor-rust-host"
 version = "0.1.0"
 dependencies = [
+ "a2a-protocol-types",
  "adk-agent",
  "adk-artifact",
  "adk-core",
  "adk-model",
+ "adk-runner",
  "adk-server",
  "adk-session",
  "adk-tool",
@@ -175,6 +187,7 @@ version = "2.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "819929b98545d3771616f8539f1fade6303b111ea29e303f9ad531ade04b7abf"
 dependencies = [
+ "a2a-protocol-types",
  "adk-agent",
  "adk-artifact",
  "adk-core",

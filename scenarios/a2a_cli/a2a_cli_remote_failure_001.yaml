@@ -1,0 +1,17 @@
+id: a2a_cli_remote_failure_001
+area: a2a-cli
+description: >
+  A remote task that fails (the remote model returns HTTP 500) becomes an ADK
+  error event on the client side, and the run ends instead of hanging. The
+  exact event shape (errorCode, errorMessage, text) is compared across SDKs.
+behaviors: [A2A-CLI-008]
+remote: {app: hello_agent}
+model_script:
+  - reply: {error: {code: 500, message: "remote scripted failure"}}
+steps:
+  - adk.create_session: {app: remote_agent, user: u1}
+    save_as: session
+  - name: turn
+    adk.run_sse: {app: remote_agent, user: u1, session: "{{session.body.id}}", text: "Fail please"}
+    expect:
+      events: {contains: "remote scripted failure"}

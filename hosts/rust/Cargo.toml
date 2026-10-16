@@ -10,13 +10,20 @@ path = "src/main.rs"
 
 [dependencies]
 # ADK-Rust 2.3.0, exact pins. Only the crates the host touches directly.
+# adk-server feature `a2a-v1`: the A2A v1.0 components (src/a2a/v1: request
+# handler, JSON-RPC/REST handlers, version middleware, card builder) and the v1
+# remote agent/client. Without it adk-server only has the legacy 0.3 A2A routes.
 adk-core = { version = "=2.3.0", default-features = false }
 adk-agent = { version = "=2.3.0", default-features = false }
 adk-model = { version = "=2.3.0", default-features = false, features = ["gemini"] }
-adk-server = { version = "=2.3.0", default-features = false }
+adk-runner = { version = "=2.3.0", default-features = false }
+adk-server = { version = "=2.3.0", default-features = false, features = ["a2a-v1"] }
 adk-session = { version = "=2.3.0", default-features = false }
 adk-artifact = { version = "=2.3.0", default-features = false }
 adk-tool = { version = "=2.3.0", default-features = false }
+
+# A2A v1 wire types, the version adk-server 2.3.0's `a2a-v1` feature uses.
+a2a-protocol-types = { version = "=0.12.1", default-features = false }
 
 # Needed by adk-tool's #[tool] macro expansion (schema + args deserialization).
 schemars = { version = "1", default-features = false, features = ["derive", "std"] }
@@ -24,6 +31,6 @@ serde = { version = "1", default-features = false, features = ["derive", "std"] 
 serde_json = { version = "1", default-features = false, features = ["std"] }
 
 axum = { version = "0.8", default-features = false, features = ["tokio", "http1"] }
-tokio = { version = "1", default-features = false, features = ["rt-multi-thread", "net", "signal"] }
+tokio = { version = "1", default-features = false, features = ["rt-multi-thread", "net", "signal", "sync", "time", "macros"] }
 tracing = { version = "0.1", default-features = false, features = ["std"] }
 tracing-subscriber = { version = "0.3", default-features = false, features = ["fmt", "env-filter", "ansi"] }

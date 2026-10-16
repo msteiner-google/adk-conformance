@@ -47,6 +47,70 @@ class ClassifyTest(unittest.TestCase):
     self.assertEqual((status, bool(note)), ("fail", True))
 
 
+class A2AParamsTest(unittest.TestCase):
+
+  def test_message_and_unsupported(self):
+    msg = runner.ScenarioRun.message({"text": "hi", "context_id": "c1", "message_id": "m1"})
+    self.assertEqual(msg, {"messageId": "m1", "role": "ROLE_USER", "parts": [{"text": "hi"}],
+                           "contextId": "c1"})
+    self.assertEqual(runner.classify(["send rest :: unsupported"], [])[0], "unsupported")
+    self.assertEqual(runner.classify(["send rest :: unsupported", "x :: y"], [])[0], "fail")
+    self.assertEqual(runner.pair_id("go", "a2a-python"), "go-to-a2a-python")
+
+
+class ProxyTest(unittest.TestCase):
+
+  def test_records_and_rewrites_card(self):
+    import http.server  # pylint: disable=import-outside-toplevel
+    import json  # pylint: disable=import-outside-toplevel
+    import threading  # pylint: disable=import-outside-toplevel
+    from harness import a2a_client, proxy  # pylint: disable=import-outside-toplevel
+
+    class Upstream(http.server.BaseHTTPRequestHandler):
+      def log_message(self, *args):
+        pass
+
+      def do_GET(self):  # the card, advertising the upstream origin
+        body = json.dumps({"supportedInterfaces": [
+            {"protocolBinding": "JSONRPC", "protocolVersion": "1.0",
+             "url": f"http://127.0.0.1:{self.server.server_address[1]}/"}]}).encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+      def do_POST(self):
+        self.rfile.read(int(self.headers["Content-Length"]))
+        body = json.dumps({"jsonrpc": "2.0", "id": 1, "result": {"task": {
+            "id": "t", "contextId": "ctx-1", "status": {"state": "TASK_STATE_COMPLETED"}}}}).encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    upstream = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Upstream)
+    threading.Thread(target=upstream.serve_forever, daemon=True).start()
+    rec = proxy.RecordingProxy(f"http://127.0.0.1:{upstream.server_address[1]}")
+    base = rec.start()
+    try:
+      card = a2a_client.http_request("GET", base + a2a_client.CARD_PATH)
+      self.assertEqual(a2a_client.interfaces(card.json)["JSONRPC"], base + "/")
+      a2a_client.http_request("POST", base + "/", a2a_client.jsonrpc_envelope(
+          "SendMessage", {"message": {"role": "ROLE_USER", "parts": [{"text": "hi"}]}}),
+          a2a_client.default_headers())
+      view = proxy.traffic_view(rec.recorded())
+      self.assertEqual(view["card_fetches"], 1)
+      self.assertEqual(view["methods"], ["SendMessage"])
+      self.assertEqual(view["versions"], ["1.0"])
+      self.assertEqual(view["message_texts"], [["hi"]])
+      self.assertEqual(view["response_context_ids"], ["ctx-1"])
+    finally:
+      rec.stop()
+      upstream.shutdown()
+
+
 class NormalizeTest(unittest.TestCase):
 
   def test_flat_function_call_is_canonicalized_and_reported(self):

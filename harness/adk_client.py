@@ -43,11 +43,14 @@ class HttpResult:
     return out
 
 
-def request(method: str, url: str, body: Any = None, timeout: float = 60) -> HttpResult:
+def request(method: str, url: str, body: Any = None, timeout: float = 60,
+            headers: dict[str, str] | None = None) -> HttpResult:
   data = None if body is None else json.dumps(body).encode()
   req = urllib.request.Request(url, data=data, method=method)
   if data is not None:
     req.add_header("Content-Type", "application/json")
+  for key, value in (headers or {}).items():
+    req.add_header(key, value)
   try:
     with urllib.request.urlopen(req, timeout=timeout) as resp:
       status, headers, raw = resp.status, resp.headers, resp.read()

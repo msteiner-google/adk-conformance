@@ -1,0 +1,27 @@
+id: a2a_cli_basic_001
+area: a2a-cli
+description: >
+  A RemoteA2aAgent as an app's root agent sends the user text as an A2A
+  message with the A2A-Version header and turns the remote answer into an ADK
+  event authored by the remote agent. When the card is fetched (at startup or
+  on the first run) is compared across SDKs, not asserted.
+behaviors: [A2A-CLI-001, A2A-CLI-002, A2A-CLI-003, A2A-CLI-011]
+remote: {app: hello_agent}
+model_script:
+  - reply: {text: "Hello from the remote agent!"}
+steps:
+  - adk.create_session: {app: remote_agent, user: u1}
+    save_as: session
+  - name: turn
+    adk.run_sse: {app: remote_agent, user: u1, session: "{{session.body.id}}", text: "Say hello"}
+    expect:
+      status: 200
+      final.author: remote_agent
+      texts: {contains: "Hello from the remote agent!"}
+      a2a.versions: {all_equal: true}
+      a2a.versions[0]: "1.0"
+      a2a.methods[0]: {in: [SendMessage, SendStreamingMessage]}
+      a2a.message_texts[0]: {contains: "Say hello"}
+      a2a.roles[0]: ROLE_USER
+expect_llm:
+  request_count: 1

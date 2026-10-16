@@ -51,8 +51,20 @@ def rust_versions() -> dict[str, str]:
   return out
 
 
+def a2a_rs_versions() -> dict[str, str]:
+  """The bare reference host (hosts/a2a-rs): the official a2aproject/a2a-rs crates."""
+  lock = _read("hosts/a2a-rs/Cargo.lock")
+  out = {}
+  for name in re.findall(r'name = "((?:a2a|agntcy)[a-z0-9-]*)"', lock):
+    match = re.search(rf'name = "{re.escape(name)}"\nversion = "([^"]+)"', lock)
+    if match:
+      out[name] = match.group(1)
+  return out
+
+
 def versions() -> dict[str, dict[str, str]]:
-  return {"python": python_versions(), "go": go_versions(), "rust": rust_versions()}
+  return {"python": python_versions(), "go": go_versions(), "rust": rust_versions(),
+          "a2a-rs": a2a_rs_versions()}
 
 
 if __name__ == "__main__":

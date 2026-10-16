@@ -1,0 +1,11 @@
+load("//tools/bazel:conformance.bzl", "a2a_client_suite")
+load("//tools/bazel:subjects.bzl", "ALL_SUBJECTS")
+
+# Interop matrix (A2A-CLI-013, attribution experiment 4): one canonical
+# conversation, every ADK client against every ADK server and every bare A2A
+# server.
+a2a_client_suite(
+    name = "a2a_interop",
+    scenarios = glob(["*.yaml"]),
+    servers = ALL_SUBJECTS.keys(),
+)

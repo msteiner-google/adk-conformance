@@ -4,6 +4,9 @@ load("@rules_python//python:py_test.bzl", "py_test")
 exports_files(["known_divergences.yaml"])
 
 SCENARIO_GROUPS = [
+    "//scenarios/a2a_cli:all_scenarios",
+    "//scenarios/a2a_interop:all_scenarios",
+    "//scenarios/a2a_srv:all_scenarios",
     "//scenarios/agt:all_scenarios",
     "//scenarios/api:all_scenarios",
     "//scenarios/core:all_scenarios",

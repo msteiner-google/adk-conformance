@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_binary")
+
+# Bare a2a-go host (hosts/BARE_HOSTS.md): the a2a-go v2 server with a fixed
+# executor and no ADK, at the a2a-go version adk-go resolves (root go.mod).
+go_binary(
+    name = "host",
+    srcs = ["main.go"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_a2aproject_a2a_go_v2//a2a",
+        "@com_github_a2aproject_a2a_go_v2//a2asrv",
+    ],
+)

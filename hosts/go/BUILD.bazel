@@ -10,6 +10,7 @@ go_binary(
         "fixtures_hello_agent.go",
         "fixtures_loop_agent.go",
         "fixtures_parallel_agent.go",
+        "fixtures_remote_agent.go",
         "fixtures_sequential_agent.go",
         "fixtures_template_agent.go",
         "fixtures_tools_agent.go",
@@ -21,6 +22,7 @@ go_binary(
     deps = [
         "@org_golang_google_adk_v2//agent",
         "@org_golang_google_adk_v2//agent/llmagent",
+        "@org_golang_google_adk_v2//agent/remoteagent/v2:remoteagent",
         "@org_golang_google_adk_v2//agent/workflowagents/loopagent",
         "@org_golang_google_adk_v2//agent/workflowagents/parallelagent",
         "@org_golang_google_adk_v2//agent/workflowagents/sequentialagent",
@@ -28,6 +30,7 @@ go_binary(
         "@org_golang_google_adk_v2//cmd/launcher",
         "@org_golang_google_adk_v2//cmd/launcher/universal",
         "@org_golang_google_adk_v2//cmd/launcher/web",
+        "@org_golang_google_adk_v2//cmd/launcher/web/a2a",
         "@org_golang_google_adk_v2//cmd/launcher/web/api",
         "@org_golang_google_adk_v2//memory",
         "@org_golang_google_adk_v2//model",

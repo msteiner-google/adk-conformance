@@ -10,13 +10,16 @@ py_binary(
         "host.py",
         "adk_monitor_shared/__init__.py",
         "adk_monitor_shared/model.py",
+        "adk_monitor_shared/remote.py",
         "adk_monitor_shared/tools.py",
     ],
     data = glob(["fixtures/**/*.py"]),
     main = "host.py",
     visibility = ["//visibility:public"],
     deps = [
+        "@pip//a2a_sdk",
         "@pip//google_adk",
+        "@pip//sse_starlette",
         "@pip//uvicorn",
     ],
 )

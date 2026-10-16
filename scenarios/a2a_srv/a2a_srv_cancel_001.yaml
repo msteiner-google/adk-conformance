@@ -1,0 +1,25 @@
+id: a2a_srv_cancel_001
+area: a2a-srv
+description: >
+  CancelTask on a running task (returnImmediately, slow model) sets
+  TASK_STATE_CANCELED; cancelling it again returns TaskNotCancelableError
+  (-32002).
+behaviors: [A2A-SRV-027]
+a2a: {app: hello_agent}
+model_script:
+  - reply: {text: "Too late.", delay_ms: 4000}
+steps:
+  - name: start
+    a2a.send_message: {text: "Take your time", return_immediately: true}
+    save_as: start
+    expect:
+      state: {in: [TASK_STATE_SUBMITTED, TASK_STATE_WORKING]}
+  - name: cancel
+    a2a.cancel_task: {id: "{{start.task_id}}"}
+    expect:
+      error: null
+      state: TASK_STATE_CANCELED
+  - name: cancel again
+    a2a.cancel_task: {id: "{{start.task_id}}"}
+    expect:
+      error_code: -32002

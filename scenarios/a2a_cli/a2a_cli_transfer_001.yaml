@@ -1,0 +1,22 @@
+id: a2a_cli_transfer_001
+area: a2a-cli
+description: >
+  A RemoteA2aAgent works as a sub-agent target of transfer_to_agent: the
+  parent LlmAgent transfers, the remote agent answers, and the answer is
+  authored by remote_agent.
+behaviors: [A2A-CLI-009, A2A-CLI-003]
+remote: {app: hello_agent}
+model_script:
+  - when: {agent: remote_transfer_agent}
+    reply: {function_calls: [{name: transfer_to_agent, args: {agent_name: remote_agent}}]}
+  - reply: {text: "Hello from the remote agent!"}
+steps:
+  - adk.create_session: {app: remote_transfer_agent, user: u1}
+    save_as: session
+  - name: turn
+    adk.run_sse: {app: remote_transfer_agent, user: u1, session: "{{session.body.id}}", text: "Please greet me"}
+    expect:
+      function_calls[0].name: transfer_to_agent
+      final.author: remote_agent
+      texts: {contains: "Hello from the remote agent!"}
+      a2a.methods: {len: 1}

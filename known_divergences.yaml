@@ -13,7 +13,10 @@
 #   expires: YYYY-MM-DD; review by then
 #
 # Triage notes: every entry below was confirmed from the raw transcript of a
-# local run on 2026-10-15 (google-adk 2.12.0, adk-go v2.6.0, adk-rust 2.3.0).
+# local run on 2026-10-15 (google-adk 2.12.0, adk-go v2.6.0, adk-rust 2.3.0),
+# A2A entries on 2026-10-16 (a2a-sdk 1.2.2, a2a-go v2.6.0, adk-server 2.3.0
+# with a2a-v1, a2a-server-lf 0.5.2). Subjects "a2a-<lang>" are bare A2A hosts;
+# "<client>-to-<server>" are client pairs.
 divergences:
   # --- adk-go -------------------------------------------------------------------
   - scenario: api_session_create_with_id_001
@@ -99,4 +102,141 @@ divergences:
     subject: rust
     checks: ["tool turn :: event_count", "tool turn :: authors", "tool turn :: function_calls[0].id", "tool turn :: function_responses[0].id"]
     reason: adk-rust emits an extra empty partial event, and does not generate or pair function call ids when the model omits them.
+    expires: "2027-01-15"
+
+  # --- A2A: a2a-go (shared by adk-go and the bare a2a-go host) ---------------------
+  - scenario: a2a_srv_cancel_001
+    subject: go
+    checks: ["cancel again :: error_code"]
+    reason: CancelTask on an already canceled task returns the task instead of TaskNotCancelableError (-32002); the bare a2a-go host does the same, so it comes from a2a-go v2.6.0.
+    expires: "2027-01-15"
+  - scenario: a2a_srv_cancel_001
+    subject: a2a-go
+    checks: ["cancel again :: error_code"]
+    reason: a2a-go v2.6.0 returns the canceled task instead of TaskNotCancelableError (-32002) when it is cancelled again.
+    expires: "2027-01-15"
+  - scenario: a2a_srv_version_001
+    subject: go
+    checks: ["unsupported version :: error_code"]
+    reason: An unsupported A2A-Version header (99.0) is served as v1 instead of VersionNotSupportedError (-32009); the bare a2a-go host does the same (a2a-go v2.6.0; ACTS VER-NEG-001 fails too).
+    expires: "2027-01-15"
+  - scenario: a2a_srv_version_001
+    subject: a2a-go
+    checks: ["unsupported version :: error_code"]
+    reason: a2a-go v2.6.0 accepts any A2A-Version header value instead of returning VersionNotSupportedError (-32009); ACTS VER-NEG-001 fails at this version.
+    expires: "2027-01-15"
+
+  # --- A2A: adk-python client vs adk-go server -------------------------------------
+  - scenario: a2a_cli_basic_001
+    subject: python-to-go
+    checks: ["turn :: final.author"]
+    reason: adk-python's RemoteA2aAgent turns adk-go's streamed answer (an artifact update without lastChunk) into a partial event and ends with a final event that has no content; against every other server it ends with the answer.
+    expires: "2027-01-15"
+  - scenario: a2a_cli_transfer_001
+    subject: python-to-go
+    checks: ["turn :: final.author"]
+    reason: Same as a2a_cli_basic_001 (adk-python client, adk-go server) after a transfer to the remote agent.
+    expires: "2027-01-15"
+  - scenario: a2a_interop_canonical_001
+    subject: python-to-go
+    checks: ["first turn :: final.author", "second turn :: final.author"]
+    reason: Same as a2a_cli_basic_001 (adk-python client, adk-go server).
+    expires: "2027-01-15"
+
+  # --- A2A: adk-rust server (adk-server 2.3.0 a2a::v1 components) -------------------
+  - scenario: a2a_srv_wire_format_001
+    subject: rust
+    checks: ["send :: format.result_shape"]
+    reason: 'SendMessage returns a bare Task as the JSON-RPC result instead of the v1 SendMessageResponse oneof ({"task": ...}); streaming events are wrapped correctly.'
+    expires: "2027-01-15"
+  - scenario: a2a_srv_input_required_001
+    subject: rust
+    checks: ["start :: *", "resume :: *"]
+    reason: A long-running tool call does not move the task to TASK_STATE_INPUT_REQUIRED; the task completes with the model's follow-up text, and the function response sent with that taskId starts a new task.
+    expires: "2027-01-15"
+  - scenario: a2a_srv_cancel_001
+    subject: rust
+    checks: ["start :: state", "cancel :: error", "cancel :: state"]
+    reason: configuration.returnImmediately is ignored (SendMessage waits for the run to finish), so CancelTask finds a completed task and returns TaskNotCancelableError.
+    expires: "2027-01-15"
+  - scenario: a2a_srv_jsonrpc_errors_001
+    subject: rust
+    checks: ["malformed json :: error_code", "invalid request :: error_code"]
+    reason: Malformed JSON gets HTTP 400 and a request without `method` HTTP 422, both with a plain-text body from the HTTP framework, instead of JSON-RPC errors -32700 and -32600.
+    expires: "2027-01-15"
+  - scenario: a2a_srv_version_001
+    subject: rust
+    checks: ["unsupported version :: error_code"]
+    reason: adk-server's version_negotiation middleware answers an unsupported A2A-Version on the JSON-RPC binding with HTTP 400 and a REST-style (AIP-193) error body instead of JSON-RPC error -32009.
+    expires: "2027-01-15"
+
+  # --- A2A: a2a-rs (official Rust SDK, the reference host for adk-rust) ------------
+  - scenario: a2a_srv_cancel_001
+    subject: a2a-rs
+    checks: ["cancel again :: error_code"]
+    reason: a2a-server-lf 0.5.2 returns the canceled task instead of TaskNotCancelableError (-32002) when it is cancelled again (same as a2a-go).
+    expires: "2027-01-15"
+
+  # --- A2A: adk-rust client (RemoteA2aV1Agent) --------------------------------------
+  - scenario: a2a_cli_context_001
+    subject: rust-to-rust
+    checks: ["second turn :: a2a.context_ids[0]", "llm :: requests[1].body"]
+    reason: adk-rust's RemoteA2aV1Agent sends no contextId on the second turn of a session, so the remote agent starts a new conversation.
+    expires: "2027-01-15"
+  - scenario: a2a_cli_context_001
+    subject: rust-to-go
+    checks: ["second turn :: a2a.context_ids[0]", "llm :: requests[1].body"]
+    reason: Same as rust-to-rust (adk-rust client does not reuse the contextId).
+    expires: "2027-01-15"
+  - scenario: a2a_cli_basic_001
+    subject: rust-to-python
+    checks: ["turn :: final.author", "turn :: texts"]
+    reason: adk-rust's v1 client splits SSE events on "\n\n" only; a2a-python (sse-starlette) separates events with CRLF, so the client yields no events from the stream. SSE allows both.
+    expires: "2027-01-15"
+  - scenario: a2a_cli_context_001
+    subject: rust-to-python
+    checks: ["first turn :: texts", "second turn :: texts", "second turn :: a2a.context_ids[0]", "llm :: requests[1].body"]
+    reason: adk-rust's client misses CRLF-delimited SSE events from a2a-python (see a2a_cli_basic_001) and does not reuse the contextId.
+    expires: "2027-01-15"
+  - scenario: a2a_cli_transfer_001
+    subject: rust-to-python
+    checks: ["turn :: final.author", "turn :: texts"]
+    reason: adk-rust's client misses CRLF-delimited SSE events from a2a-python (see a2a_cli_basic_001).
+    expires: "2027-01-15"
+  - scenario: a2a_cli_remote_failure_001
+    subject: rust-to-python
+    checks: ["turn :: events"]
+    reason: adk-rust's client misses CRLF-delimited SSE events from a2a-python (see a2a_cli_basic_001), including the FAILED status.
+    expires: "2027-01-15"
+  - scenario: a2a_interop_canonical_001
+    subject: rust-to-python
+    checks: ["first turn :: texts", "first turn :: final.author", "second turn :: texts"]
+    reason: adk-rust's client misses CRLF-delimited SSE events from a2a-python (see a2a_cli_basic_001).
+    expires: "2027-01-15"
+  - scenario: a2a_interop_canonical_001
+    subject: rust-to-a2a-python
+    checks: ["first turn :: texts", "first turn :: final.author", "second turn :: texts"]
+    reason: adk-rust's client misses CRLF-delimited SSE events from the bare a2a-python server too, so the cause is the client, not the adk-python adapter.
+    expires: "2027-01-15"
+
+  # --- A2A: adk-go client vs adk-rust server ---------------------------------------
+  - scenario: a2a_cli_basic_001
+    subject: go-to-rust
+    checks: ["turn :: final.author", "turn :: texts"]
+    reason: 'adk-go''s client rejects adk-rust''s SendMessage result, a bare Task instead of the v1 oneof ("could not determine type"); see a2a_srv_wire_format_001 on rust.'
+    expires: "2027-01-15"
+  - scenario: a2a_cli_context_001
+    subject: go-to-rust
+    checks: ["first turn :: texts", "second turn :: texts", "second turn :: a2a.context_ids[0]", "llm :: requests[1].body"]
+    reason: adk-go's client rejects adk-rust's bare-Task SendMessage result (see a2a_cli_basic_001 go-to-rust).
+    expires: "2027-01-15"
+  - scenario: a2a_cli_transfer_001
+    subject: go-to-rust
+    checks: ["turn :: final.author", "turn :: texts"]
+    reason: adk-go's client rejects adk-rust's bare-Task SendMessage result (see a2a_cli_basic_001 go-to-rust).
+    expires: "2027-01-15"
+  - scenario: a2a_interop_canonical_001
+    subject: go-to-rust
+    checks: ["first turn :: texts", "first turn :: final.author", "second turn :: texts"]
+    reason: adk-go's client rejects adk-rust's bare-Task SendMessage result (see a2a_cli_basic_001 go-to-rust).
     expires: "2027-01-15"

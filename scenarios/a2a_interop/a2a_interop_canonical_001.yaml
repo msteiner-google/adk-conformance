@@ -1,0 +1,25 @@
+id: a2a_interop_canonical_001
+area: a2a-cli
+description: >
+  The canonical conversation for the interop matrix: one remote turn and a
+  follow-up in the same session, from every ADK client to every A2A server
+  (ADK hosts and bare A2A hosts).
+behaviors: [A2A-CLI-013, A2A-CLI-003, A2A-CLI-004]
+remote: {app: hello_agent}
+model_script:
+  - when: {turn: 1}
+    reply: {text: "Interop answer one."}
+  - when: {turn: 2}
+    reply: {text: "Interop answer two."}
+steps:
+  - adk.create_session: {app: remote_agent, user: u1}
+    save_as: session
+  - name: first turn
+    adk.run_sse: {app: remote_agent, user: u1, session: "{{session.body.id}}", text: "Interop one"}
+    expect:
+      texts: {contains: "Interop answer one."}
+      final.author: remote_agent
+  - name: second turn
+    adk.run_sse: {app: remote_agent, user: u1, session: "{{session.body.id}}", text: "Interop two"}
+    expect:
+      texts: {contains: "Interop answer two."}

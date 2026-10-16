@@ -39,6 +39,8 @@ Rule format::
   * ``empty``: ``true`` returns a candidate with no parts.
   * ``error``: ``{code, message}``; returned as an HTTP error.
   * ``finish_reason``: overrides ``STOP`` on the final chunk.
+  * ``delay_ms``: waits this long before answering (keeps a task running, for
+    cancel and resubscribe scenarios).
 
 The module only uses the standard library, so it runs without Bazel too::
 
@@ -54,6 +56,7 @@ import json
 import re
 import sys
 import threading
+import time
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
@@ -312,6 +315,8 @@ class ScriptedModelServer:
         except ScriptError as e:
           self._send_error(500, str(e))
           return
+        if reply.get("delay_ms"):
+          time.sleep(float(reply["delay_ms"]) / 1000)
         if "error" in reply:
           err = reply["error"]
           self._send_error(int(err.get("code", 500)), str(err.get("message", "scripted error")))

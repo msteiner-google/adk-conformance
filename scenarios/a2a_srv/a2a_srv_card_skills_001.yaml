@@ -1,0 +1,16 @@
+id: a2a_srv_card_skills_001
+area: a2a-srv
+description: >
+  How skills[] is derived from an agent with tools (count, ids, names,
+  descriptions). Compared across SDKs; only the presence of skills is
+  asserted.
+behaviors: [A2A-SRV-004]
+a2a: {app: tools_agent}
+steps:
+  - name: card
+    a2a.get_card: {}
+    expect:
+      status: 200
+      body.name: tools_agent
+      body.description: "Agent with the shared tool library."
+      skill_ids: {type: list}

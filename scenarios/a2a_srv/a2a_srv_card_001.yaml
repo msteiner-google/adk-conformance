@@ -1,0 +1,27 @@
+id: a2a_srv_card_001
+area: a2a-srv
+description: >
+  The agent card is served at the well-known path with HTTP 200 and a JSON
+  content type, has every v1 required field, takes name and description from
+  the root agent, and declares interfaces with url, protocolBinding and
+  protocolVersion.
+behaviors: [A2A-SRV-001, A2A-SRV-002, A2A-SRV-003, A2A-SRV-005, A2A-SRV-006]
+a2a: {app: hello_agent}
+steps:
+  - name: card
+    a2a.get_card: {}
+    expect:
+      status: 200
+      content_type: {contains: json}
+      body.name: hello_agent
+      body.description: "Hello-world fixture agent."
+      body.version: {type: string}
+      body.capabilities: {type: object}
+      body.capabilities.streaming: {type: boolean}
+      body.defaultInputModes: {type: list}
+      body.defaultOutputModes: {type: list}
+      body.skills: {type: list}
+      body.supportedInterfaces: {type: list}
+      body.supportedInterfaces[0].protocolBinding: {in: [JSONRPC, HTTP+JSON, GRPC]}
+      body.supportedInterfaces[0].protocolVersion: {regex: "^1\\."}
+      bindings: {contains: JSONRPC}

@@ -1,0 +1,10 @@
+load("//tools/bazel:conformance.bzl", "conformance_suite")
+load("//tools/bazel:subjects.bzl", "ALL_SUBJECTS")
+
+# A2A server scenarios run on the ADK hosts and on the bare A2A hosts (the
+# control group for attribution).
+conformance_suite(
+    name = "a2a_srv",
+    scenarios = glob(["*.yaml"]),
+    subjects = ALL_SUBJECTS.keys(),
+)

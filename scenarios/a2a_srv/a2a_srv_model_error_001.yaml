@@ -1,0 +1,21 @@
+id: a2a_srv_model_error_001
+area: a2a-srv
+description: >
+  A model error (HTTP 500 from the scripted model) moves the task to
+  TASK_STATE_FAILED with an error message, on SendMessage and on
+  SendStreamingMessage, and the stream is closed, not left hanging.
+behaviors: [A2A-SRV-019]
+a2a: {app: hello_agent}
+model_script:
+  - reply: {error: {code: 500, message: "scripted failure"}}
+steps:
+  - name: send
+    a2a.send_message: {text: "Fail please"}
+    expect:
+      state: TASK_STATE_FAILED
+      status_texts: {len: 1}
+  - name: stream
+    a2a.stream: {text: "Fail please"}
+    expect:
+      closed: true
+      final_state: TASK_STATE_FAILED

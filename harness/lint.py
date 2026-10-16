@@ -14,7 +14,10 @@ from harness import paths, runner
 from model_server.server import ModelScript
 
 DRIVERS = {"adk.list_apps", "adk.create_session", "adk.get_session", "adk.list_sessions",
-           "adk.delete_session", "adk.run", "adk.run_sse", "http"}
+           "adk.delete_session", "adk.run", "adk.run_sse", "http",
+           "a2a.get_card", "a2a.send_message", "a2a.stream", "a2a.get_task", "a2a.cancel_task",
+           "a2a.list_tasks", "a2a.subscribe", "a2a.raw", "a2a.check_interfaces"}
+A2A_DRIVERS = {d for d in DRIVERS if d.startswith("a2a.")}
 WHEN_KEYS = {"turn", "agent", "call", "has_function_response", "last_user_text_contains",
              "newest_content_contains"}
 STEP_KEYS = {"expect", "save_as", "name"}
@@ -39,11 +42,18 @@ def lint(path: str) -> list[str]:
     for key in rule.get("when") or {}:
       if key not in WHEN_KEYS:
         problems.append(f"{path}: unknown model_script 'when' key {key!r}")
+  if scenario.get("a2a") and scenario.get("remote"):
+    problems.append(f"{path}: a scenario is either an A2A server ('a2a') or client ('remote') one")
+  for key in ("a2a", "remote"):
+    if scenario.get(key) is not None and not (scenario[key] or {}).get("app"):
+      problems.append(f"{path}: '{key}' needs an 'app' (the fixture to serve over A2A)")
   names = set()
   for i, step in enumerate(scenario["steps"]):
     drivers = [k for k in step if k not in STEP_KEYS]
     if len(drivers) != 1 or drivers[0] not in DRIVERS:
       problems.append(f"{path}: step {i}: expected one driver from {sorted(DRIVERS)}, got {drivers}")
+    if drivers and drivers[0] in A2A_DRIVERS and not scenario.get("a2a"):
+      problems.append(f"{path}: step {i}: {drivers[0]} needs 'a2a: {{app: ...}}' in the scenario")
     name = step.get("name", f"{i}:{drivers[0] if drivers else '?'}")
     if name in names:
       problems.append(f"{path}: duplicate step name {name!r}")

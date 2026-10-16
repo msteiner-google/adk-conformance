@@ -88,3 +88,33 @@ SDK allows it.
 - LlmAgent `template_agent`, no tools.
   - description: `Agent whose instruction reads session state.`
   - instruction: `AGENT=template_agent. The user's name is {user_name}.`
+
+### 9. `remote_agent`
+
+- The SDK's remote A2A agent (RemoteA2aAgent) as the app's root agent, SDK
+  defaults: name `remote_agent`, description `Remote A2A agent.`
+- Its agent card comes from `--remote-a2a-url` (the well-known path under that
+  base URL). Without the flag the URL is a placeholder and the fixture is only
+  listed, not runnable.
+
+### 10. `remote_transfer_agent`
+
+- LlmAgent `remote_transfer_agent`, no tools.
+  - description: `Routes requests to a remote agent.`
+  - instruction: `AGENT=remote_transfer_agent. Route every request to remote_agent.`
+  - sub-agents: a fresh `remote_agent` (fixture 9).
+
+## Serving a fixture over A2A
+
+With `--a2a-port N --a2a-app NAME` a host also serves fixture `NAME` over A2A
+v1 on `127.0.0.1:N`, through the SDK's own A2A exposure, with its own
+in-memory services. The agent card is at `/.well-known/agent-card.json`; the
+card's interfaces say where JSON-RPC (and HTTP+JSON, if any) live.
+
+| Host | A2A exposure | JSON-RPC | HTTP+JSON |
+|---|---|---|---|
+| python | `google.adk.a2a.utils.agent_to_a2a.to_a2a` | `/` | — |
+| go | `cmd/launcher/web/a2a` (adk-go's A2A web sublauncher) | `/a2a/v1/invoke` | — |
+| rust | adk-server `a2a::v1` components (see hosts/rust) | `/` | `/rest` |
+
+Bare A2A hosts (no ADK) are specified in [hosts/BARE_HOSTS.md](../hosts/BARE_HOSTS.md).

@@ -6,8 +6,9 @@ exports_files([
     "Cargo.toml",
 ])
 
-# Rust ADK host (community zavora-ai/adk-rust): serves the hello_agent fixture
-# through adk-server's own REST API (/api). Dependencies come from Cargo.toml.
+# Rust ADK host (community zavora-ai/adk-rust): serves the fixtures through
+# adk-server's own REST API (/api) and, with --a2a-port/--a2a-app, one fixture
+# over A2A v1 (adk-server `a2a-v1` components). Dependencies come from Cargo.toml.
 rust_binary(
     name = "host",
     srcs = glob(["src/**/*.rs"]),

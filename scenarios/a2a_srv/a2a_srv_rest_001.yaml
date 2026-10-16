@@ -1,0 +1,16 @@
+id: a2a_srv_rest_001
+area: a2a-srv
+description: >
+  SendMessage over HTTP+JSON (REST), where the card declares that binding.
+  SDKs without a REST binding show up as not-implemented.
+behaviors: [A2A-SRV-006, A2A-SRV-008]
+a2a: {app: hello_agent}
+model_script:
+  - reply: {text: "Hello from the scripted model!"}
+steps:
+  - name: send rest
+    a2a.send_message: {text: "Say hello", binding: HTTP+JSON}
+    expect:
+      status: 200
+      state: TASK_STATE_COMPLETED
+      result: {contains: "Hello from the scripted model!"}

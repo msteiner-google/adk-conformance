@@ -3,6 +3,7 @@
 
 use std::sync::Arc;
 
+use a2a_protocol_types::AgentCard;
 use adk_agent::LlmAgentBuilder;
 use adk_core::{Agent, Llm};
 
@@ -10,6 +11,8 @@ mod agent_tool_agent;
 mod hello_agent;
 mod loop_agent;
 mod parallel_agent;
+mod remote_agent;
+mod remote_transfer_agent;
 mod sequential_agent;
 mod template_agent;
 mod tools_agent;
@@ -18,8 +21,9 @@ mod transfer_agent;
 pub type BuildResult = Result<Arc<dyn Agent>, String>;
 
 /// All fixture root agents, in FIXTURES.md order (hello_agent first, so it is
-/// the loader's default root).
-pub fn all(model: Arc<dyn Llm>) -> Result<Vec<Arc<dyn Agent>>, String> {
+/// the loader's default root). `remote_card` is the v1 agent card the remote
+/// fixtures (9, 10) talk to.
+pub fn all(model: Arc<dyn Llm>, remote_card: &AgentCard) -> Result<Vec<Arc<dyn Agent>>, String> {
     Ok(vec![
         hello_agent::build(model.clone())?,
         tools_agent::build(model.clone())?,
@@ -28,7 +32,9 @@ pub fn all(model: Arc<dyn Llm>) -> Result<Vec<Arc<dyn Agent>>, String> {
         parallel_agent::build(model.clone())?,
         loop_agent::build(model.clone())?,
         agent_tool_agent::build(model.clone())?,
-        template_agent::build(model)?,
+        template_agent::build(model.clone())?,
+        remote_agent::build(remote_card)?,
+        remote_transfer_agent::build(model, remote_card)?,
     ])
 }
 

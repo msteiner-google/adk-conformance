@@ -1,4 +1,7 @@
 # Python host dependencies for adk-monitor.
 google-adk==2.12.0
+# A2A v1: google-adk switches to the a2a-sdk 1.x API when 1.x is installed
+# (google/adk/a2a/_compat.py). Also used by the bare host (//hosts/a2a-python).
+a2a-sdk[http-server]==1.2.2
 uvicorn==0.54.0
 pyyaml==6.0.3

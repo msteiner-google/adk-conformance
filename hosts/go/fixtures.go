@@ -24,6 +24,22 @@ var fixtureBuilders = []fixtureBuilder{
 	newLoopAgent,
 	newAgentToolAgent,
 	newTemplateAgent,
+	newRemoteAgentFixture,
+	newRemoteTransferAgent,
+}
+
+// buildFixture builds one fixture's root agent by app name.
+func buildFixture(m model.LLM, app string) (agent.Agent, error) {
+	roots, err := buildFixtures(m)
+	if err != nil {
+		return nil, err
+	}
+	for _, root := range roots {
+		if root.Name() == app {
+			return root, nil
+		}
+	}
+	return nil, fmt.Errorf("unknown fixture %q", app)
 }
 
 // buildFixtures builds every fixture's root agent.

@@ -1,0 +1,36 @@
+id: a2a_srv_input_required_001
+area: a2a-srv
+description: >
+  A long-running tool call moves the task to TASK_STATE_INPUT_REQUIRED and
+  exposes the pending call as a data part. Sending the function response as a
+  data part (metadata adk_type=function_response) with the same taskId resumes
+  the task and completes it. Whether the model also sees the pending result
+  first is compared across SDKs, not asserted.
+behaviors: [A2A-SRV-015, A2A-SRV-016]
+a2a: {app: tools_agent}
+model_script:
+  - when: {agent: tools_agent, newest_content_contains: approved}
+    reply: {text: "Approved."}
+  - when: {agent: tools_agent, has_function_response: request_approval}
+    reply: {text: "Approval pending."}
+  - when: {agent: tools_agent, call: 1}
+    reply: {function_calls: [{name: request_approval, args: {amount: 500}, id: call-approve}]}
+steps:
+  - name: start
+    a2a.send_message: {text: "Reimburse 500 EUR"}
+    save_as: start
+    expect:
+      state: TASK_STATE_INPUT_REQUIRED
+      data_parts: {contains: request_approval}
+      task.status: {contains: call-approve}
+  - name: resume
+    a2a.send_message:
+      task_id: "{{start.task_id}}"
+      context_id: "{{start.context_id}}"
+      parts:
+        - data: {id: call-approve, name: request_approval, response: {status: approved}}
+          metadata: {adk_type: function_response}
+    expect:
+      task_id: "{{start.task_id}}"
+      state: TASK_STATE_COMPLETED
+      result: {contains: "Approved."}

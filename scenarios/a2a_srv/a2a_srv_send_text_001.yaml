@@ -1,0 +1,21 @@
+id: a2a_srv_send_text_001
+area: a2a-srv
+description: >
+  SendMessage with one text part returns a Task in a terminal state (or a
+  Message), and the agent's final text appears in the response. Where the
+  text lands (artifact, status message, history) is compared across SDKs.
+behaviors: [A2A-SRV-008, A2A-SRV-009, A2A-SRV-010]
+a2a: {app: hello_agent}
+model_script:
+  - reply: {text: "Hello from the scripted model!"}
+steps:
+  - name: send
+    a2a.send_message: {text: "Say hello"}
+    expect:
+      status: 200
+      error: null
+      response_type: {in: [task, message]}
+      state: TASK_STATE_COMPLETED
+      result: {contains: "Hello from the scripted model!"}
+expect_llm:
+  request_count: 1

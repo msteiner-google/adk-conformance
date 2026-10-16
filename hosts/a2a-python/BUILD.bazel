@@ -1,0 +1,17 @@
+load("@rules_python//python:py_binary.bzl", "py_binary")
+
+# Bare a2a-python host (hosts/BARE_HOSTS.md): the a2a-sdk server with a fixed
+# executor and no ADK, at the a2a-sdk version google-adk resolves (same lock).
+py_binary(
+    name = "host",
+    srcs = ["host.py"],
+    main = "host.py",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@pip//a2a_sdk",
+        "@pip//protobuf",
+        "@pip//sse_starlette",
+        "@pip//starlette",
+        "@pip//uvicorn",
+    ],
+)

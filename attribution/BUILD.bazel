@@ -1,0 +1,30 @@
+load("@rules_python//python:py_binary.bzl", "py_binary")
+load("@rules_python//python:py_library.bzl", "py_library")
+load("@rules_python//python:py_test.bzl", "py_test")
+
+# Root-cause attribution for A2A findings (design doc). Runs after the
+# conformance tests, like harness:compare; see tools/run_pipeline.sh.
+py_library(
+    name = "attribution",
+    srcs = [
+        "__init__.py",
+        "engine.py",
+        "external.py",
+        "latest.py",
+    ],
+    visibility = ["//visibility:public"],
+    deps = ["//harness"],
+)
+
+py_binary(
+    name = "engine",
+    srcs = ["engine.py"],
+    deps = [":attribution"],
+)
+
+py_test(
+    name = "engine_test",
+    size = "small",
+    srcs = ["engine_test.py"],
+    deps = [":attribution"],
+)

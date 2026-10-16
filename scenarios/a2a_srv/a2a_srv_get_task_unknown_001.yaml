@@ -1,0 +1,11 @@
+id: a2a_srv_get_task_unknown_001
+area: a2a-srv
+description: GetTask with an unknown id returns TaskNotFoundError (-32001 on JSON-RPC).
+behaviors: [A2A-SRV-026]
+a2a: {app: hello_agent}
+steps:
+  - name: get unknown
+    a2a.get_task: {id: "adk-monitor-no-such-task"}
+    expect:
+      error_code: -32001
+      task: null

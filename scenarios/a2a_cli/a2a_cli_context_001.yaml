@@ -1,0 +1,28 @@
+id: a2a_cli_context_001
+area: a2a-cli
+description: >
+  A second turn in the same ADK session reuses the remote contextId the server
+  returned on the first turn, so the remote agent keeps the conversation.
+behaviors: [A2A-CLI-004]
+remote: {app: hello_agent}
+model_script:
+  - when: {turn: 1}
+    reply: {text: "First remote answer."}
+  - when: {turn: 2}
+    reply: {text: "Second remote answer."}
+steps:
+  - adk.create_session: {app: remote_agent, user: u1}
+    save_as: session
+  - name: first turn
+    adk.run_sse: {app: remote_agent, user: u1, session: "{{session.body.id}}", text: "First question"}
+    save_as: first
+    expect:
+      texts: {contains: "First remote answer."}
+  - name: second turn
+    adk.run_sse: {app: remote_agent, user: u1, session: "{{session.body.id}}", text: "Second question"}
+    expect:
+      texts: {contains: "Second remote answer."}
+      a2a.context_ids[0]: "{{first.a2a.response_context_ids[0]}}"
+expect_llm:
+  request_count: 2
+  requests[1].body: {contains: "First question"}

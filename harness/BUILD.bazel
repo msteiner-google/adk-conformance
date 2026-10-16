@@ -6,11 +6,14 @@ py_library(
     name = "harness",
     srcs = [
         "__init__.py",
+        "a2a_client.py",
+        "a2a_view.py",
         "adk_client.py",
         "compare.py",
         "lint.py",
         "normalize.py",
         "paths.py",
+        "proxy.py",
         "runner.py",
     ],
     visibility = ["//visibility:public"],
@@ -60,5 +63,12 @@ py_test(
     name = "compare_test",
     size = "small",
     srcs = ["compare_test.py"],
+    deps = [":harness"],
+)
+
+py_test(
+    name = "a2a_view_test",
+    size = "small",
+    srcs = ["a2a_view_test.py"],
     deps = [":harness"],
 )

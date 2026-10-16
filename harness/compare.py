@@ -26,10 +26,11 @@ import re
 import sys
 from typing import Any
 
-from harness import normalize
+from harness import a2a_view, normalize
 
 STATUS_MARK = {
-    "pass": "✅", "fail": "❌", "xfail": "⚠️", "xpass": "❔", "error": "💥", "missing": "·",
+    "pass": "✅", "fail": "❌", "xfail": "⚠️", "xpass": "❔", "error": "💥", "unsupported": "🚫",
+    "missing": "·",
 }
 # Event fields that vary between runs and never indicate a behavior difference.
 VOLATILE = {"id", "invocationId", "timestamp", "lastUpdateTime", "responseId", "modelVersion",
@@ -112,6 +113,16 @@ def _step_result(step: dict[str, Any]) -> dict[str, Any] | None:
 
 def step_signature(step: dict[str, Any], ids: IdMap) -> dict[str, Any]:
   """Behavior view of one step: status and normalized payload, no volatile fields."""
+  if step["kind"].startswith("a2a."):
+    return a2a_signature(step, ids)
+  sig = _adk_step_signature(step, ids)
+  traffic = traffic_signature(step, ids)
+  if traffic is not None:
+    sig["a2a"] = traffic
+  return sig
+
+
+def _adk_step_signature(step: dict[str, Any], ids: IdMap) -> dict[str, Any]:
   response = _step_result(step) or {}
   sig: dict[str, Any] = {"status": response.get("status"), "error": step.get("error") or None}
   if "events" in response:
@@ -129,6 +140,133 @@ def step_signature(step: dict[str, Any], ids: IdMap) -> dict[str, Any]:
     else:
       sig["body"] = body
   return sig
+
+
+# A2A signatures ---------------------------------------------------------------------
+
+# Volatile A2A fields: generated ids are mapped to placeholders, timestamps dropped.
+_A2A_ID_KEYS = {"id", "taskId", "contextId", "messageId", "artifactId"}
+_A2A_DROP_KEYS = {"timestamp"}
+# ADK metadata values that are generated per run (ids, session/user names).
+_A2A_VOLATILE_META = re.compile(r"(_id|_session_id|_user_id|_invocation_id|_event_id)$")
+
+
+def _a2a_scrub(value: Any, ids: IdMap) -> Any:
+  if isinstance(value, list):
+    return [_a2a_scrub(v, ids) for v in value]
+  if not isinstance(value, dict):
+    return value
+  out = {}
+  for key, child in value.items():
+    if key in _A2A_DROP_KEYS:
+      continue
+    if key in _A2A_ID_KEYS and isinstance(child, str):
+      out[key] = ids(child)
+    elif key == "metadata" and isinstance(child, dict):
+      out[key] = {k: ("<volatile>" if _A2A_VOLATILE_META.search(k) else _a2a_scrub(v, ids))
+                  for k, v in sorted(child.items())}
+    else:
+      out[key] = _a2a_scrub(child, ids)
+  return out
+
+
+def a2a_step_view(step: dict[str, Any]) -> dict[str, Any] | None:
+  """Recomputes the harness's A2A view of an a2a.* step from its raw exchange."""
+  response = _step_result(step)
+  if response is None:
+    return None
+  binding = step.get("binding") or "JSONRPC"
+  content_type = response.get("content_type", "")
+  if step["kind"] == "a2a.get_card":
+    return a2a_view.card_view(response.get("status"), content_type, response.get("body"))
+  if "events" in response:
+    return a2a_view.stream_view(binding, response.get("status"), content_type, response["events"],
+                                response.get("closed", True), response.get("sse_framing", ""))
+  from harness import a2a_client  # pylint: disable=import-outside-toplevel
+  result, error = a2a_client.unwrap(binding, response.get("body"))
+  return a2a_view.response_view(binding, response.get("status"), content_type,
+                                response.get("body"), result, error)
+
+
+def a2a_signature(step: dict[str, Any], ids: IdMap) -> dict[str, Any]:
+  """Behavior view of an a2a.* step: what a client can observe, minus volatility."""
+  sig: dict[str, Any] = {"error": step.get("error") or None}
+  if step["kind"] == "a2a.check_interfaces":
+    responses = [ex.get("response", {}) for ex in step.get("exchanges", [])]
+    sig["probes"] = [{"status": r.get("status"), "body": _a2a_scrub(r.get("body"), ids)}
+                     for r in responses]
+    return sig
+  view = a2a_step_view(step)
+  if view is None:
+    return sig
+  sig["status"] = view.get("status")
+  if step["kind"] == "a2a.get_card":
+    card = view.get("body") if isinstance(view.get("body"), dict) else {}
+    interfaces = [{"binding": i.get("protocolBinding"), "version": i.get("protocolVersion")}
+                  for i in card.get("supportedInterfaces") or [] if isinstance(i, dict)]
+    sig["card"] = {
+        "fields": view.get("field_names"),
+        "name": card.get("name"),
+        "description": card.get("description"),
+        "capabilities": card.get("capabilities"),
+        "interfaces": interfaces,
+        "defaultInputModes": card.get("defaultInputModes"),
+        "defaultOutputModes": card.get("defaultOutputModes"),
+        "skills": [{k: s.get(k) for k in ("id", "name", "description", "tags")}
+                   for s in card.get("skills") or [] if isinstance(s, dict)],
+    }
+    return sig
+  if "events" in view:
+    sig.update({
+        "closed": view["closed"],
+        "kinds": view["kinds"],
+        "states": view["distinct_states"],
+        "artifact_updates": [{k: u[k] for k in ("append", "lastChunk", "text")}
+                             for u in view["artifact_updates"]],
+        "status_texts": view["status_texts"],
+        "message_texts": view["message_texts"],
+        "data_parts": _a2a_scrub(view["data_parts"], ids),
+        "error_codes": [e.get("code") for e in view["errors"]],
+    })
+    return sig
+  task = view.get("task") or {}
+  sig.update({
+      "response_type": view.get("response_type"),
+      "error_code": view.get("error_code"),
+      "state": view.get("state"),
+      "text_locations": view.get("text_locations"),
+      "artifact_texts": view.get("artifact_texts"),
+      "status_texts": view.get("status_texts"),
+      "history_roles": view.get("history_roles"),
+      "data_parts": _a2a_scrub(view.get("data_parts"), ids),
+      "metadata_keys": view.get("metadata_keys"),
+      "artifacts": [{"name": a.get("name"), "parts": len(a.get("parts") or [])}
+                    for a in task.get("artifacts") or []],
+  })
+  if view.get("message"):
+    sig["message"] = _a2a_scrub(view["message"], ids)
+  return sig
+
+
+def traffic_signature(step: dict[str, Any], ids: IdMap) -> dict[str, Any] | None:
+  """What a client host put on the wire during one step (client scenarios)."""
+  from harness import proxy  # pylint: disable=import-outside-toplevel
+  traffic = step.get("a2a_traffic")
+  if traffic is None:
+    return None
+  view = proxy.traffic_view(traffic)
+  return {
+      "card_fetches": view["card_fetches"] > 0,
+      "methods": view["methods"],
+      "versions": view["versions"],
+      "messages": [{"role": m.get("role"),
+                    "parts": [a2a_view.part_texts([p]) or sorted(p) for p in m.get("parts") or []],
+                    "contextId": ids(m.get("contextId")) if m.get("contextId") else None,
+                    "taskId": ids(m.get("taskId")) if m.get("taskId") else None}
+                   for m in view["messages"]],
+      "configuration": [_a2a_scrub((r.get("params") or {}).get("configuration"), ids)
+                        for r in view["requests"] if isinstance(r.get("params"), dict)],
+  }
 
 
 def _schema(schema: Any) -> Any:
@@ -189,6 +327,17 @@ def format_facts(transcript: dict[str, Any]) -> dict[str, Any]:
   for step in transcript.get("steps", []):
     response = _step_result(step) or {}
     entry: dict[str, Any] = {"content_type": (response.get("content_type") or "").split(";")[0].lower()}
+    if step["kind"].startswith("a2a."):
+      payload = response.get("events") if "events" in response else response.get("body")
+      wrapped = step["kind"] in ("a2a.send_message", "a2a.stream", "a2a.subscribe")
+      entry.update(a2a_view.format_facts(payload, wrapped=wrapped))
+      if "events" in response:
+        entry["sse_framing"] = response.get("sse_framing")
+        entry["sse_line_ending"] = response.get("sse_line_ending")
+      if step["kind"] == "a2a.raw" or (isinstance(payload, dict) and "error" in payload):
+        entry["http_status"] = response.get("status")
+      facts[step["name"]] = entry
+      continue
     payload = response.get("events") if "events" in response else response.get("body")
     if payload is not None:
       entry["key_style"] = normalize.key_style(payload)
@@ -306,53 +455,146 @@ def recurring(findings: list[dict[str, Any]], top: int = 25) -> list[dict[str, A
   return [dict(g, count=len(g["scenarios"])) for g in ranked[:top]]
 
 
+def subject_role(transcript: dict[str, Any]) -> str:
+  """'adk' (an ADK host), 'control' (a bare A2A host) or 'pair' (client-to-server)."""
+  topology = transcript.get("topology") or {}
+  if topology.get("server"):
+    return "pair"
+  return "control" if topology.get("kind") == "bare" else "adk"
+
+
+def _compare_scenario(scenario: str, per: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
+  """Differential findings for one scenario over the given transcripts."""
+  findings = []
+  if len(per) < 2:
+    return findings
+  any_t = next(iter(per.values()))
+  for name in [s["name"] for s in any_t.get("steps", [])]:
+    values = {}
+    for subject, t in per.items():
+      step = next((s for s in t.get("steps", []) if s["name"] == name), None)
+      if step is not None:
+        values[subject] = step_signature(step, IdMap())
+    finding = compare_aspect(scenario, f"step:{name}", values)
+    if finding:
+      findings.append(finding)
+  finding = compare_aspect(scenario, "llm", {s: llm_signature(t, IdMap()) for s, t in per.items()})
+  if finding:
+    findings.append(finding)
+  finding = compare_aspect(scenario, "format", {s: format_facts(t) for s, t in per.items()})
+  if finding:
+    findings.append(finding)
+  return findings
+
+
+def _compare_clients(scenario: str, pairs: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
+  """Client differential for a client scenario: clients are the voters.
+
+  Each client's value is its behavior against every ADK server ({server:
+  signature}), so a difference that only shows against one server still
+  separates the clients, and server-side differences (covered by the A2A
+  server scenarios) do not.
+  """
+  by_client: dict[str, dict[str, dict[str, Any]]] = collections.defaultdict(dict)
+  for t in pairs.values():
+    topo = t.get("topology") or {}
+    if topo.get("server_kind") != "bare":
+      by_client[topo["client"]][topo["server"]] = t
+  if len(by_client) < 2:
+    return []
+  servers = sorted(set.intersection(*[set(v) for v in by_client.values()]))
+  findings = []
+  any_t = next(iter(pairs.values()))
+  for name in [s["name"] for s in any_t.get("steps", [])]:
+    values = {}
+    for client, per_server in by_client.items():
+      values[client] = {}
+      for server in servers:
+        step = next((s for s in per_server[server].get("steps", []) if s["name"] == name), None)
+        values[client][server] = step_signature(step, IdMap()) if step else None
+    finding = compare_aspect(scenario, f"step:{name}", values)
+    if finding:
+      findings.append(finding)
+  for aspect, fn in (("llm", llm_signature), ("format", lambda t, _ids: format_facts(t))):
+    values = {c: {srv: fn(per[srv], IdMap()) for srv in servers} for c, per in by_client.items()}
+    finding = compare_aspect(scenario, aspect, values)
+    if finding:
+      findings.append(finding)
+  return findings
+
+
+def _status(t: dict[str, Any] | None) -> str:
+  if not t:
+    return "missing"
+  return t.get("status") or ("pass" if t.get("passed") else "fail")
+
+
 def build_report(transcripts: dict[str, dict[str, dict[str, Any]]],
                  meta: dict[str, Any] | None = None) -> dict[str, Any]:
-  subjects = sorted({s for per in transcripts.values() for s in per})
-  matrix, findings = {}, []
+  """Matrix, differential findings and interop grid.
+
+  The differential oracle compares ADK hosts only: bare A2A hosts are a
+  control group (attribution), not voters. In client scenarios the voters are
+  the clients, each with its behavior against every ADK server.
+  """
+  roles: dict[str, str] = {}
+  for per in transcripts.values():
+    for subject, t in per.items():
+      roles[subject] = subject_role(t)
+  adk = sorted(s for s, r in roles.items() if r == "adk")
+  controls = sorted(s for s, r in roles.items() if r == "control")
+  subjects = adk + controls
+  matrix, findings, interop = {}, [], {}
   counts = {s: collections.Counter() for s in subjects}
+  pair_counts: collections.Counter = collections.Counter()
   for scenario in sorted(transcripts):
     per = transcripts[scenario]
-    ni = not_implemented_steps(per)
+    any_t = next(iter(per.values()))
+    pairs = {s: t for s, t in per.items() if roles[s] == "pair"}
+    if pairs:
+      clients = sorted({(t.get("topology") or {}).get("client") for t in pairs.values()})
+      servers = sorted({(t.get("topology") or {}).get("server") for t in pairs.values()},
+                       key=lambda x: (roles.get(x) == "control", x))
+      cells: dict[str, dict[str, Any]] = {c: {} for c in clients}
+      for subject, t in pairs.items():
+        topo = t.get("topology") or {}
+        status = _status(t)
+        pair_counts[status] += 1
+        cells[topo["client"]][topo["server"]] = {
+            "subject": subject, "status": status, "failures": t.get("failures", []),
+            "known_divergence": t.get("known_divergence"),
+            "server_kind": topo.get("server_kind")}
+      interop[scenario] = {"area": any_t.get("area", ""), "behaviors": any_t.get("behaviors", []),
+                           "clients": clients, "servers": servers, "cells": cells}
+      findings.extend(_compare_clients(scenario, pairs))
+      continue
+    ni = not_implemented_steps({s: t for s, t in per.items() if s in subjects})
     row = {}
     for subject in subjects:
       t = per.get(subject)
-      status = (t.get("status") or ("pass" if t.get("passed") else "fail")) if t else "missing"
-      counts[subject][status] += 1
+      status = _status(t)
+      if not (status == "missing" and roles[subject] == "control"):
+        counts[subject][status] += 1  # bare hosts only run the A2A server scenarios
+      unsupported = [st["name"] for st in (t or {}).get("steps", [])
+                     if str(st.get("error", "")).startswith("unsupported:")]
       row[subject] = {
           "status": status,
           "failures": t.get("failures", []) if t else [],
-          "not_implemented": ni.get(subject, []),
+          "not_implemented": sorted(set(ni.get(subject, []) + unsupported)),
           "known_divergence": (t or {}).get("known_divergence"),
       }
-    any_t = next(iter(per.values()))
     matrix[scenario] = {"area": any_t.get("area", ""), "behaviors": any_t.get("behaviors", []),
                         "subjects": row}
-    # Aspects.
-    step_names = [s["name"] for s in any_t.get("steps", [])]
-    for name in step_names:
-      values = {}
-      for subject, t in per.items():
-        ids = IdMap()
-        step = next((s for s in t.get("steps", []) if s["name"] == name), None)
-        if step is not None:
-          values[subject] = step_signature(step, ids)
-      finding = compare_aspect(scenario, f"step:{name}", values)
-      if finding:
-        findings.append(finding)
-    llm_values = {s: llm_signature(t, IdMap()) for s, t in per.items()}
-    finding = compare_aspect(scenario, "llm", llm_values)
-    if finding:
-      findings.append(finding)
-    format_values = {s: format_facts(t) for s, t in per.items()}
-    finding = compare_aspect(scenario, "format", format_values)
-    if finding:
-      findings.append(finding)
+    findings.extend(_compare_scenario(scenario, {s: t for s, t in per.items() if roles[s] == "adk"}))
   return {
       "meta": meta or {},
       "subjects": subjects,
+      "adk_subjects": adk,
+      "control_subjects": controls,
       "counts": {s: dict(c) for s, c in counts.items()},
+      "pair_counts": dict(pair_counts),
       "matrix": matrix,
+      "interop": interop,
       "findings": findings,
       "recurring": recurring(findings),
   }
@@ -377,8 +619,14 @@ def render_markdown(report: dict[str, Any]) -> str:
   for s in subjects:
     c = report["counts"][s]
     lines.append(f"| {s} | " + " | ".join(str(c.get(k, 0)) for k in STATUS_MARK) + " |")
+  if report.get("pair_counts"):
+    c = report["pair_counts"]
+    lines.append("| *client-to-server pairs* | " + " | ".join(str(c.get(k, 0)) for k in STATUS_MARK) + " |")
   lines += ["", "Legend: " + ", ".join(f"{m} {k}" for k, m in STATUS_MARK.items()) +
-            ", 🚫 a step hit an unimplemented route.", ""]
+            "; 🚫 after a status: a step hit an unimplemented route or binding.", ""]
+  if report.get("control_subjects"):
+    lines += ["Control subjects (bare A2A hosts, not part of the differential oracle): " +
+              ", ".join(f"`{s}`" for s in report["control_subjects"]) + ".", ""]
   lines += ["## Matrix", "", "| Scenario | Area | " + " | ".join(subjects) + " |",
             "|---|---|" + "---|" * len(subjects)]
   for scenario, row in report["matrix"].items():
@@ -386,12 +634,27 @@ def render_markdown(report: dict[str, Any]) -> str:
     for s in subjects:
       cell = row["subjects"][s]
       mark = STATUS_MARK.get(cell["status"], "?")
-      if cell["not_implemented"]:
+      if cell["not_implemented"] and cell["status"] != "unsupported":
         mark += "🚫"
       cells.append(mark)
     lines.append(f"| `{scenario}` | {row['area']} | " + " | ".join(cells) + " |")
+  for scenario, grid in (report.get("interop") or {}).items():
+    if scenario == next(iter(report["interop"])):
+      lines += ["", "## A2A client × server", "",
+                "Rows: the client (an ADK host's RemoteA2aAgent). Columns: the server. "
+                "A failing row points at the client, a failing column at the server.", ""]
+    lines += [f"### `{scenario}`", "", "| client \\ server | " + " | ".join(grid["servers"]) + " |",
+              "|---|" + "---|" * len(grid["servers"])]
+    for client in grid["clients"]:
+      cells = [STATUS_MARK.get(grid["cells"][client].get(srv, {}).get("status", "missing"), "?")
+               for srv in grid["servers"]]
+      lines.append(f"| {client} | " + " | ".join(cells) + " |")
+    lines.append("")
   failing = [(sc, s, row["subjects"][s]) for sc, row in report["matrix"].items() for s in subjects
              if row["subjects"][s]["status"] in ("fail", "error", "xpass")]
+  failing += [(sc, cell["subject"], cell) for sc, grid in (report.get("interop") or {}).items()
+              for row in grid["cells"].values() for cell in row.values()
+              if cell["status"] in ("fail", "error", "xpass")]
   if failing:
     lines += ["", "## Failures", ""]
     for scenario, subject, cell in failing:

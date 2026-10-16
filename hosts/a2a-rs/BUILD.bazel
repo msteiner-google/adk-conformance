@@ -1,0 +1,19 @@
+load("@crates_a2a_rs//:defs.bzl", "all_crate_deps")
+load("@rules_rust//rust:defs.bzl", "rust_binary")
+
+exports_files([
+    "Cargo.lock",
+    "Cargo.toml",
+])
+
+# Bare a2a-rs host (hosts/BARE_HOSTS.md): the official A2A Rust SDK
+# (a2aproject/a2a-rs: a2a-lf + a2a-server-lf) with a fixed executor and no ADK.
+# Reference for the rust subject. Dependencies come from Cargo.toml.
+rust_binary(
+    name = "host",
+    srcs = glob(["src/**/*.rs"]),
+    edition = "2024",
+    proc_macro_deps = all_crate_deps(proc_macro = True),
+    visibility = ["//visibility:public"],
+    deps = all_crate_deps(normal = True),
+)
