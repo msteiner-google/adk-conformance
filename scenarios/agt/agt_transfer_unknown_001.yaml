@@ -1,0 +1,16 @@
+id: agt_transfer_unknown_001
+area: agt
+description: Transfer to an agent that does not exist. Compared across SDKs.
+behaviors: [AGT-008]
+model_script:
+  - when: {agent: transfer_agent, has_function_response: true}
+    reply: {text: "Could not transfer."}
+  - when: {agent: transfer_agent, call: 1}
+    reply: {function_calls: [{name: transfer_to_agent, args: {agent_name: nobody}}]}
+steps:
+  - adk.create_session: {app: transfer_agent, user: u1}
+    save_as: session
+  - name: bad transfer
+    adk.run_sse: {app: transfer_agent, user: u1, session: "{{session.body.id}}", text: "Hi!"}
+    expect:
+      status: {exists: true}

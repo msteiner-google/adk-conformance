@@ -1,11 +1,17 @@
-// Command go hosts the adk-monitor hello_agent fixture behind the ADK Go
-// SDK's own REST API server (cmd/launcher/web + the api sublauncher).
+// Command go hosts every adk-monitor fixture (fixtures/FIXTURES.md) as a
+// separate app behind the ADK Go SDK's own REST API server
+// (cmd/launcher/web + the api sublauncher). App name == root agent name.
 //
 // Usage:
 //
 //	go run ./hosts/go --http-port 18766 --model-base-url http://127.0.0.1:18765
 //
 // The REST API is served under the SDK's default path prefix, /api.
+//
+// SDK built-ins used by the fixtures: exit_loop (tool/exitlooptool),
+// AgentTool (tool/agenttool), Sequential/Parallel/LoopAgent
+// (agent/workflowagents/...), transfer_to_agent (added by llmagent for
+// sub-agents), and agent.NewMultiLoader to serve all apps from one launcher.
 package main
 
 import (
@@ -21,7 +27,6 @@ import (
 	"google.golang.org/genai"
 
 	"google.golang.org/adk/v2/agent"
-	"google.golang.org/adk/v2/agent/llmagent"
 	"google.golang.org/adk/v2/artifact"
 	"google.golang.org/adk/v2/cmd/launcher"
 	"google.golang.org/adk/v2/cmd/launcher/universal"
@@ -33,12 +38,9 @@ import (
 )
 
 const (
-	agentName        = "hello_agent"
-	modelName        = "gemini-2.5-flash"
-	agentDescription = "Hello-world fixture agent."
-	agentInstruction = "You are a friendly assistant. Answer in one short sentence."
-	apiKey           = "scripted-key"
-	bindHost         = "127.0.0.1"
+	modelName = "gemini-2.5-flash"
+	apiKey    = "scripted-key"
+	bindHost  = "127.0.0.1"
 )
 
 func main() {
@@ -80,18 +82,19 @@ func run() error {
 		return fmt.Errorf("create gemini model: %w", err)
 	}
 
-	a, err := llmagent.New(llmagent.Config{
-		Name:        agentName,
-		Model:       model,
-		Description: agentDescription,
-		Instruction: agentInstruction,
-	})
+	roots, err := buildFixtures(model)
 	if err != nil {
-		return fmt.Errorf("create agent: %w", err)
+		return fmt.Errorf("create fixtures: %w", err)
+	}
+	// One launcher serves all fixtures; the "root" only matters for callers
+	// that don't name an app, and is the first fixture (hello_agent).
+	loader, err := agent.NewMultiLoader(roots[0], roots[1:]...)
+	if err != nil {
+		return fmt.Errorf("create agent loader: %w", err)
 	}
 
 	config := &launcher.Config{
-		AgentLoader:     agent.NewSingleLoader(a),
+		AgentLoader:     loader,
 		SessionService:  session.InMemoryService(),
 		ArtifactService: artifact.InMemoryService(),
 		MemoryService:   memory.InMemoryService(),

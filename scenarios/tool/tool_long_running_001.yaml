@@ -1,0 +1,32 @@
+id: tool_long_running_001
+area: tool
+description: >
+  A long-running tool returns a pending result and its call id is listed in
+  longRunningToolIds. Sending the final function response later (as a new
+  user message) resumes the agent. Whether the SDK also lets the model react
+  to the pending result is compared across SDKs, not asserted.
+behaviors: [TOOL-015]
+model_script:
+  - when: {agent: tools_agent, newest_content_contains: approved}
+    reply: {text: "Approved."}
+  - when: {agent: tools_agent, has_function_response: request_approval}
+    reply: {text: "Approval pending."}
+  - when: {agent: tools_agent, call: 1}
+    reply: {function_calls: [{name: request_approval, args: {amount: 500}, id: call-approve}]}
+steps:
+  - adk.create_session: {app: tools_agent, user: u1}
+    save_as: session
+  - name: start approval
+    adk.run_sse: {app: tools_agent, user: u1, session: "{{session.body.id}}", text: "Reimburse 500 EUR"}
+    expect:
+      events[*].longRunningToolIds: {contains: call-approve}
+      function_responses[0].response.status: pending
+  - name: resume with approval
+    adk.run_sse:
+      app: tools_agent
+      user: u1
+      session: "{{session.body.id}}"
+      parts:
+        - functionResponse: {id: call-approve, name: request_approval, response: {status: approved}}
+    expect:
+      final.content.parts[0].text: "Approved."

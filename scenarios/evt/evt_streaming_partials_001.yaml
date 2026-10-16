@@ -1,0 +1,16 @@
+id: evt_streaming_partials_001
+area: evt
+description: With streaming on, chunks arrive as partial events followed by one aggregated final event.
+behaviors: [EVT-007, LLM-008]
+model_script:
+  - reply: {text: "Hello from chunks!", chunks: ["Hello ", "from ", "chunks!"]}
+steps:
+  - adk.create_session: {app: hello_agent, user: u1}
+    save_as: session
+  - name: streaming turn
+    adk.run_sse: {app: hello_agent, user: u1, session: "{{session.body.id}}", text: "Stream please", streaming: true}
+    expect:
+      status: 200
+      events[0].partial: true
+      final.content.parts[0].text: "Hello from chunks!"
+      event_count: 4

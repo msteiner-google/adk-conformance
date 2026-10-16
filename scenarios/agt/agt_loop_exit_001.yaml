@@ -1,0 +1,21 @@
+id: agt_loop_exit_001
+area: agt
+description: exit_loop ends the LoopAgent before max_iterations; no new iteration starts.
+behaviors: [AGT-012]
+model_script:
+  - when: {agent: looper, has_function_response: exit_loop}
+    reply: {text: "summary after exit"}
+  - when: {agent: looper, call: 1}
+    reply: {text: "working 1"}
+  - when: {agent: looper, call: 2}
+    reply: {function_calls: [{name: exit_loop, args: {}}]}
+  - when: {agent: looper}
+    reply: {text: "working again"}
+steps:
+  - adk.create_session: {app: loop_agent, user: u1}
+    save_as: session
+  - name: loop with exit
+    adk.run_sse: {app: loop_agent, user: u1, session: "{{session.body.id}}", text: "Go"}
+    expect:
+      function_calls[*].name: {contains: exit_loop}
+      texts: {not_contains: "working again"}

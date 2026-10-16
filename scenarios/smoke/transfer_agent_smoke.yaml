@@ -1,0 +1,22 @@
+id: transfer_agent_smoke
+area: smoke
+description: transfer_agent transfers to greeter, which answers.
+behaviors: [AGT-005]
+fixture: transfer_agent
+model_script:
+  - when: {agent: transfer_agent}
+    reply: {function_calls: [{name: transfer_to_agent, args: {agent_name: greeter}}]}
+  - when: {agent: greeter}
+    reply: {text: "Hello there!"}
+steps:
+  - adk.create_session: {app: transfer_agent, user: u1}
+    save_as: session
+  - name: greeting turn
+    adk.run_sse: {app: transfer_agent, user: u1, session: "{{session.body.id}}", text: "Hi!"}
+    expect:
+      status: 200
+      final.author: greeter
+      final.content.parts[0].text: "Hello there!"
+expect_llm:
+  request_count: 2
+  requests[1].agent: greeter

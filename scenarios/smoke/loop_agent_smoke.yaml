@@ -1,0 +1,18 @@
+id: loop_agent_smoke
+area: smoke
+description: loop_agent runs looper until max_iterations (3) when nobody exits.
+behaviors: [AGT-011]
+fixture: loop_agent
+model_script:
+  - when: {agent: looper}
+    reply: {text: "working"}
+steps:
+  - adk.create_session: {app: loop_agent, user: u1}
+    save_as: session
+  - name: loop turn
+    adk.run_sse: {app: loop_agent, user: u1, session: "{{session.body.id}}", text: "Go"}
+    expect:
+      status: 200
+      texts: ["working", "working", "working"]
+expect_llm:
+  request_count: 3

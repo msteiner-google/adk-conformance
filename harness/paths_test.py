@@ -16,6 +16,10 @@ class PathsTest(unittest.TestCase):
     with self.assertRaisesRegex(KeyError, r"nothing at a\.x"):
       paths.lookup({"a": {}}, "a.x.y")
 
+  def test_star_skips_missing(self):
+    data = {"events": [{"a": {"x": 1}}, {"b": 2}, {"a": {"x": 3}}]}
+    self.assertEqual(paths.lookup(data, "events[*].a.x"), [1, 3])
+
   def test_bad_path(self):
     with self.assertRaises(ValueError):
       paths.parse("a..b[")

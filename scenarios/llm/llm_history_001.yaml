@@ -1,0 +1,18 @@
+id: llm_history_001
+area: llm
+description: The second turn's request carries the whole history in order.
+behaviors: [LLM-003]
+model_script:
+  - when: {turn: 1}
+    reply: {text: "First answer."}
+  - when: {turn: 2}
+    reply: {text: "Second answer."}
+steps:
+  - adk.create_session: {app: hello_agent, user: u1}
+    save_as: session
+  - adk.run_sse: {app: hello_agent, user: u1, session: "{{session.body.id}}", text: "First question"}
+  - adk.run_sse: {app: hello_agent, user: u1, session: "{{session.body.id}}", text: "Second question"}
+expect_llm:
+  request_count: 2
+  requests[1].body.contents[*].role: [user, model, user]
+  requests[1].body.contents[*].parts[0].text: ["First question", "First answer.", "Second question"]

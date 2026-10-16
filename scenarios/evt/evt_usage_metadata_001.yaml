@@ -1,0 +1,14 @@
+id: evt_usage_metadata_001
+area: evt
+description: usageMetadata from the model response is passed through on the event.
+behaviors: [EVT-010]
+model_script:
+  - reply: {text: "ok"}
+steps:
+  - adk.create_session: {app: hello_agent, user: u1}
+    save_as: session
+  - name: one turn
+    adk.run_sse: {app: hello_agent, user: u1, session: "{{session.body.id}}", text: "hi"}
+    expect:
+      final.usageMetadata.totalTokenCount: 2
+      final.usageMetadata.promptTokenCount: 1

@@ -1,0 +1,14 @@
+id: llm_generate_method_001
+area: llm
+description: Without streaming, the SDK calls generateContent.
+behaviors: [LLM-008]
+model_script:
+  - reply: {text: "ok"}
+steps:
+  - adk.create_session: {app: hello_agent, user: u1}
+    save_as: session
+  - adk.run_sse: {app: hello_agent, user: u1, session: "{{session.body.id}}", text: "hi", streaming: false}
+expect_llm:
+  requests[0].method: generateContent
+  requests[0].model: gemini-2.5-flash
+  requests[0].api_version: v1beta

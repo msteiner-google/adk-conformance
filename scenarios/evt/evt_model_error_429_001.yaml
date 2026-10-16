@@ -1,0 +1,13 @@
+id: evt_model_error_429_001
+area: evt
+description: A 429 from the model. Behavior is compared across SDKs (error event vs HTTP error).
+behaviors: [EVT-009]
+model_script:
+  - reply: {error: {code: 429, message: "Resource exhausted (scripted)."}}
+steps:
+  - adk.create_session: {app: hello_agent, user: u1}
+    save_as: session
+  - name: failing turn
+    adk.run_sse: {app: hello_agent, user: u1, session: "{{session.body.id}}", text: "hi"}
+    expect:
+      status: {exists: true}

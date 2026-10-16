@@ -1,0 +1,16 @@
+id: tool_unknown_001
+area: tool
+description: The model calls a tool that does not exist. Compared across SDKs.
+behaviors: [TOOL-009]
+model_script:
+  - when: {agent: tools_agent, has_function_response: true}
+    reply: {text: "Recovered."}
+  - when: {agent: tools_agent, call: 1}
+    reply: {function_calls: [{name: no_such_tool, args: {}, id: call-missing}]}
+steps:
+  - adk.create_session: {app: tools_agent, user: u1}
+    save_as: session
+  - name: unknown tool turn
+    adk.run_sse: {app: tools_agent, user: u1, session: "{{session.body.id}}", text: "Call it"}
+    expect:
+      status: {exists: true}

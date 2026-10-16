@@ -1,0 +1,24 @@
+id: agent_tool_agent_smoke
+area: smoke
+description: agent_tool_agent calls helper as a tool and answers from its result.
+behaviors: [TOOL-013]
+fixture: agent_tool_agent
+model_script:
+  - when: {agent: agent_tool_agent, has_function_response: helper}
+    reply: {text: "The helper says 4."}
+  - when: {agent: agent_tool_agent, call: 1}
+    reply: {function_calls: [{name: helper, args: {request: "What is 2+2?"}}]}
+  - when: {agent: helper}
+    reply: {text: "4"}
+steps:
+  - adk.create_session: {app: agent_tool_agent, user: u1}
+    save_as: session
+  - name: agent tool turn
+    adk.run_sse: {app: agent_tool_agent, user: u1, session: "{{session.body.id}}", text: "Ask the helper"}
+    expect:
+      status: 200
+      final.author: agent_tool_agent
+      final.content.parts[0].text: "The helper says 4."
+      function_calls[0].name: helper
+expect_llm:
+  request_count: 3

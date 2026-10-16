@@ -1,0 +1,16 @@
+id: api_sse_framing_001
+area: api
+description: '/run_sse uses text/event-stream with "data: <json>" framing.'
+behaviors: [API-009]
+model_script:
+  - reply: {text: "Hello from the scripted model!"}
+steps:
+  - adk.create_session: {app: hello_agent, user: u1}
+    save_as: session
+  - name: run sse
+    adk.run_sse: {app: hello_agent, user: u1, session: "{{session.body.id}}", text: "Say hello"}
+    expect:
+      status: 200
+      content_type: {contains: text/event-stream}
+      sse_framing: "data: "
+      events[*].author: {all_equal: true}

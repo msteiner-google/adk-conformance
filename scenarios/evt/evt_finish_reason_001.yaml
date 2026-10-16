@@ -1,0 +1,13 @@
+id: evt_finish_reason_001
+area: evt
+description: A non-STOP finish reason (MAX_TOKENS) is surfaced on the event.
+behaviors: [EVT-001]
+model_script:
+  - reply: {text: "truncated", finish_reason: MAX_TOKENS}
+steps:
+  - adk.create_session: {app: hello_agent, user: u1}
+    save_as: session
+  - name: truncated turn
+    adk.run_sse: {app: hello_agent, user: u1, session: "{{session.body.id}}", text: "hi"}
+    expect:
+      final.finishReason: MAX_TOKENS

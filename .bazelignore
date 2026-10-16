@@ -1,2 +1,4 @@
 hosts/rust/target
 .venv
+deploy/terraform/.terraform
+out

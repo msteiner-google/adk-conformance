@@ -1,0 +1,17 @@
+id: api_session_get_001
+area: api
+description: After one turn, GET session returns the user and agent events in order.
+behaviors: [API-004, EVT-003]
+model_script:
+  - reply: {text: "Hello from the scripted model!"}
+steps:
+  - adk.create_session: {app: hello_agent, user: u1}
+    save_as: session
+  - adk.run_sse: {app: hello_agent, user: u1, session: "{{session.body.id}}", text: "Say hello"}
+  - name: get session
+    adk.get_session: {app: hello_agent, user: u1, session: "{{session.body.id}}"}
+    expect:
+      status: 200
+      body.events: {len: 2}
+      authors: [user, hello_agent]
+      texts: ["Say hello", "Hello from the scripted model!"]

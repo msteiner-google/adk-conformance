@@ -1,0 +1,15 @@
+id: llm_system_instruction_001
+area: llm
+description: The agent instruction is sent as systemInstruction, followed by the agent identity text.
+behaviors: [LLM-001]
+model_script:
+  - reply: {text: "ok"}
+steps:
+  - adk.create_session: {app: hello_agent, user: u1}
+    save_as: session
+  - adk.run_sse: {app: hello_agent, user: u1, session: "{{session.body.id}}", text: "Say hello"}
+expect_llm:
+  request_count: 1
+  requests[0].body.systemInstruction.parts[0].text: {contains: "Answer in one short sentence."}
+  requests[0].body.systemInstruction: {contains: 'Your internal name is "hello_agent"'}
+  requests[0].body.contents: {len: 1}

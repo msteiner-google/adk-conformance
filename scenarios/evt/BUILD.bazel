@@ -1,0 +1,6 @@
+load("//tools/bazel:conformance.bzl", "conformance_suite")
+
+conformance_suite(
+    name = "evt",
+    scenarios = glob(["*.yaml"]),
+)

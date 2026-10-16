@@ -1,0 +1,14 @@
+id: api_session_list_001
+area: api
+description: Listing sessions returns every session of the user.
+behaviors: [SES-004]
+steps:
+  - adk.create_session: {app: hello_agent, user: list-user}
+    save_as: first
+  - adk.create_session: {app: hello_agent, user: list-user}
+    save_as: second
+  - name: list sessions
+    adk.list_sessions: {app: hello_agent, user: list-user}
+    expect:
+      status: 200
+      session_ids: {len: 2}

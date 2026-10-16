@@ -1,0 +1,16 @@
+id: api_session_create_with_state_001
+area: api
+description: Initial state given at creation is stored and returned.
+behaviors: [API-003, SES-007]
+steps:
+  - name: create session with state
+    adk.create_session: {app: hello_agent, user: u1, state: {color: blue}}
+    save_as: session
+    expect:
+      status: 200
+      body.state.color: blue
+  - name: get session
+    adk.get_session: {app: hello_agent, user: u1, session: "{{session.body.id}}"}
+    expect:
+      status: 200
+      body.state.color: blue

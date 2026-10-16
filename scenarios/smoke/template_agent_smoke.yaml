@@ -1,0 +1,19 @@
+id: template_agent_smoke
+area: smoke
+description: template_agent's instruction reads {user_name} from session state.
+behaviors: [AGT-002, SES-007]
+fixture: template_agent
+model_script:
+  - when: {agent: template_agent}
+    reply: {text: "Hi Ada!"}
+steps:
+  - adk.create_session: {app: template_agent, user: u1, state: {user_name: Ada}}
+    save_as: session
+  - name: templated turn
+    adk.run_sse: {app: template_agent, user: u1, session: "{{session.body.id}}", text: "Hello"}
+    expect:
+      status: 200
+      final.content.parts[0].text: "Hi Ada!"
+expect_llm:
+  request_count: 1
+  requests[0].body: {contains: "The user's name is Ada."}

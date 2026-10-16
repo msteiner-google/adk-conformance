@@ -1,0 +1,21 @@
+id: tool_state_write_001
+area: tool
+description: A tool writing state produces a stateDelta on its event and updates the session.
+behaviors: [TOOL-010, EVT-008, SES-003]
+model_script:
+  - when: {agent: tools_agent, has_function_response: set_state}
+    reply: {text: "Stored."}
+  - when: {agent: tools_agent, call: 1}
+    reply: {function_calls: [{name: set_state, args: {key: color, value: green}, id: call-state}]}
+steps:
+  - adk.create_session: {app: tools_agent, user: u1}
+    save_as: session
+  - name: state tool turn
+    adk.run_sse: {app: tools_agent, user: u1, session: "{{session.body.id}}", text: "Remember green"}
+    expect:
+      events[*].actions.stateDelta.color: [green]
+      function_responses[0].response.status: ok
+  - name: get session
+    adk.get_session: {app: tools_agent, user: u1, session: "{{session.body.id}}"}
+    expect:
+      body.state.color: green

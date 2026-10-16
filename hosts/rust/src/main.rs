@@ -1,22 +1,23 @@
-//! adk-monitor Rust host: serves the `hello_agent` fixture through adk-server's
-//! own REST API server (`adk_server::create_app`, routes under `/api`).
+//! adk-monitor Rust host: serves every fixture in fixtures/FIXTURES.md as a
+//! separate app (app name == root agent name) through adk-server's own REST API
+//! server (`adk_server::create_app`, routes under `/api`), using the SDK's
+//! `MultiAgentLoader`.
 
 use std::net::{Ipv4Addr, SocketAddr};
 use std::process::ExitCode;
 use std::sync::Arc;
 
-use adk_agent::LlmAgentBuilder;
 use adk_artifact::InMemoryArtifactService;
-use adk_core::SingleAgentLoader;
+use adk_core::{Llm, MultiAgentLoader};
 use adk_model::GeminiModel;
 use adk_server::{ServerConfig, create_app, shutdown_signal};
 use adk_session::InMemorySessionService;
 
-const AGENT_NAME: &str = "hello_agent";
+mod fixtures;
+mod tools;
+
 const MODEL: &str = "gemini-2.5-flash";
 const API_KEY: &str = "scripted-key";
-const DESCRIPTION: &str = "Hello-world fixture agent.";
-const INSTRUCTION: &str = "You are a friendly assistant. Answer in one short sentence.";
 
 struct Args {
     http_port: u16,
@@ -74,18 +75,15 @@ async fn run(args: Args) -> Result<(), String> {
     let model = GeminiModel::new_with_base_url(API_KEY, MODEL, &base_url)
         .map_err(|e| format!("failed to create Gemini model: {e}"))?;
 
-    let agent = LlmAgentBuilder::new(AGENT_NAME)
-        .description(DESCRIPTION)
-        .instruction(INSTRUCTION)
-        .model(Arc::new(model))
-        .build()
-        .map_err(|e| format!("failed to build agent: {e}"))?;
+    let model: Arc<dyn Llm> = Arc::new(model);
 
-    let config = ServerConfig::new(
-        Arc::new(SingleAgentLoader::new(Arc::new(agent))),
-        Arc::new(InMemorySessionService::new()),
-    )
-    .with_artifact_service(Arc::new(InMemoryArtifactService::new()));
+    let agents = fixtures::all(model)?;
+    let names: Vec<String> = agents.iter().map(|a| a.name().to_string()).collect();
+    let loader =
+        MultiAgentLoader::new(agents).map_err(|e| format!("failed to create agent loader: {e}"))?;
+
+    let config = ServerConfig::new(Arc::new(loader), Arc::new(InMemorySessionService::new()))
+        .with_artifact_service(Arc::new(InMemoryArtifactService::new()));
 
     let app = create_app(config);
 
@@ -93,7 +91,7 @@ async fn run(args: Args) -> Result<(), String> {
     let listener = tokio::net::TcpListener::bind(addr)
         .await
         .map_err(|e| format!("failed to bind {addr}: {e}"))?;
-    tracing::info!("ADK REST API listening on http://{addr}/api (app {AGENT_NAME})");
+    tracing::info!("ADK REST API listening on http://{addr}/api (apps {names:?})");
 
     axum::serve(listener, app)
         .with_graceful_shutdown(shutdown_signal())

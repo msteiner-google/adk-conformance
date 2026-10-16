@@ -1,0 +1,22 @@
+id: evt_invocation_id_001
+area: evt
+description: All events of one run share an invocationId; the next run gets a new one.
+behaviors: [EVT-004]
+model_script:
+  - when: {agent: tools_agent, has_function_response: add}
+    reply: {text: "The sum is 5."}
+  - when: {agent: tools_agent}
+    reply: {function_calls: [{name: add, args: {a: 2, b: 3}}]}
+steps:
+  - adk.create_session: {app: tools_agent, user: u1}
+    save_as: session
+  - name: first run
+    adk.run_sse: {app: tools_agent, user: u1, session: "{{session.body.id}}", text: "2+3?"}
+    save_as: run1
+    expect:
+      event_count: 3
+      events[*].invocationId: {all_equal: true}
+  - name: second run
+    adk.run_sse: {app: tools_agent, user: u1, session: "{{session.body.id}}", text: "again"}
+    expect:
+      events[0].invocationId: {ne: "{{run1.events[0].invocationId}}"}

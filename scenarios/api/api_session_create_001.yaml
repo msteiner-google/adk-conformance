@@ -1,0 +1,15 @@
+id: api_session_create_001
+area: api
+description: Creating a session returns the documented Session shape.
+behaviors: [API-003, API-004]
+steps:
+  - name: create session
+    adk.create_session: {app: hello_agent, user: u1}
+    expect:
+      status: 200
+      body.id: {regex: ".+"}
+      body.appName: hello_agent
+      body.userId: u1
+      body.state: {exists: true}
+      body.events: {exists: true}
+      body.lastUpdateTime: {exists: true}

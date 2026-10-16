@@ -1,0 +1,23 @@
+id: agt_transfer_sticky_001
+area: agt
+description: After a transfer, the next turn goes straight to the sub-agent.
+behaviors: [AGT-005]
+model_script:
+  - when: {agent: transfer_agent}
+    reply: {function_calls: [{name: transfer_to_agent, args: {agent_name: greeter}}]}
+  - when: {agent: greeter, call: 1}
+    reply: {text: "Hello there!"}
+  - when: {agent: greeter, call: 2}
+    reply: {text: "Hello again!"}
+steps:
+  - adk.create_session: {app: transfer_agent, user: u1}
+    save_as: session
+  - adk.run_sse: {app: transfer_agent, user: u1, session: "{{session.body.id}}", text: "Hi!"}
+  - name: second turn
+    adk.run_sse: {app: transfer_agent, user: u1, session: "{{session.body.id}}", text: "Hi again!"}
+    expect:
+      final.author: greeter
+      final.content.parts[0].text: "Hello again!"
+expect_llm:
+  request_count: 3
+  requests[*].agent: [transfer_agent, greeter, greeter]

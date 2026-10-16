@@ -33,11 +33,26 @@ def conformance_suite(name, scenarios, subjects = None, size = "medium", tags = 
                     "--subject=%s" % subject,
                     "--host=$(rootpath %s)" % info.host,
                     "--base-path=%s" % info.base_path,
+                    "--known-divergences=$(rootpath //:known_divergences.yaml)",
                 ],
-                data = [scenario, info.host],
+                data = [scenario, info.host, "//:known_divergences.yaml"],
                 deps = ["//harness"],
                 size = size,
                 tags = ["conformance", "subject-" + subject] + tags,
             )
             tests.append(test_name)
+    native.filegroup(
+        name = "all_scenarios",
+        srcs = scenarios,
+        visibility = ["//visibility:public"],
+    )
+    py_test(
+        name = name + "_lint",
+        size = "small",
+        srcs = ["//harness:lint.py"],
+        main = "//harness:lint.py",
+        args = ["$(rootpath %s)" % s for s in scenarios],
+        data = scenarios,
+        deps = ["//harness"],
+    )
     native.test_suite(name = name, tests = tests, tags = ["conformance"])

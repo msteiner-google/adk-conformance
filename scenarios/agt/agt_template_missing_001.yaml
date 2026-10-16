@@ -1,0 +1,13 @@
+id: agt_template_missing_001
+area: agt
+description: A required {placeholder} missing from state. Compared across SDKs (error vs empty substitution).
+behaviors: [AGT-002]
+model_script:
+  - reply: {text: "Hi!"}
+steps:
+  - adk.create_session: {app: template_agent, user: u1}
+    save_as: session
+  - name: templated turn without state
+    adk.run_sse: {app: template_agent, user: u1, session: "{{session.body.id}}", text: "Hello"}
+    expect:
+      status: {exists: true}

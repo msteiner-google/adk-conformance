@@ -1,4 +1,9 @@
-"""adk-monitor Python host: serves hello_agent via the ADK API server."""
+"""adk-monitor Python host: serves every fixture via the ADK API server.
+
+Each package under fixtures/ is one app (app name == root agent name). Shared
+code lives in adk_monitor_shared/, next to this file, so the agent loader does
+not list it as an app.
+"""
 
 import argparse
 import logging
@@ -10,7 +15,18 @@ _MODEL_BASE_URL_ENV = "ADK_MONITOR_MODEL_BASE_URL"
 _HOST = "127.0.0.1"
 # abspath, not resolve(): keep Bazel runfiles symlinks instead of following
 # them back into the source tree.
-_FIXTURES_DIR = pathlib.Path(os.path.abspath(__file__)).parent / "fixtures"
+_HOST_DIR = pathlib.Path(os.path.abspath(__file__)).parent
+_FIXTURES_DIR = _HOST_DIR / "fixtures"
+_FIXTURE_APPS = (
+    "hello_agent",
+    "tools_agent",
+    "transfer_agent",
+    "sequential_agent",
+    "parallel_agent",
+    "loop_agent",
+    "agent_tool_agent",
+    "template_agent",
+)
 
 
 def _parse_args(argv: list[str]) -> argparse.Namespace:
@@ -45,9 +61,20 @@ def main(argv: list[str]) -> int:
   args = _parse_args(argv)
   _isolate_environment(args.model_base_url)
 
-  if not (_FIXTURES_DIR / "hello_agent" / "agent.py").is_file():
-    logging.error("Fixture agent not found under %s", _FIXTURES_DIR)
+  missing = [
+      name
+      for name in _FIXTURE_APPS
+      if not (_FIXTURES_DIR / name / "agent.py").is_file()
+  ]
+  if missing:
+    logging.error(
+        "Fixture agents %s not found under %s", missing, _FIXTURES_DIR
+    )
     return 1
+  # Fixtures import adk_monitor_shared; make it importable natively and
+  # under Bazel runfiles alike.
+  if str(_HOST_DIR) not in sys.path:
+    sys.path.insert(0, str(_HOST_DIR))
 
   # Import after the env is pinned so nothing reads stale settings.
   import uvicorn

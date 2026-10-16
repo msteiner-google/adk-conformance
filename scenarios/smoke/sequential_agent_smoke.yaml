@@ -1,0 +1,25 @@
+id: sequential_agent_smoke
+area: smoke
+description: step_one's output (output_key=topic) is templated into step_two's instruction.
+behaviors: [AGT-009, AGT-013, AGT-002]
+fixture: sequential_agent
+model_script:
+  - when: {agent: step_one}
+    reply: {text: "Lighthouses"}
+  - when: {agent: step_two}
+    reply: {text: "Lighthouses guide ships home."}
+steps:
+  - adk.create_session: {app: sequential_agent, user: u1}
+    save_as: session
+  - name: sequential turn
+    adk.run_sse: {app: sequential_agent, user: u1, session: "{{session.body.id}}", text: "Go"}
+    expect:
+      status: 200
+      final.author: step_two
+      final.content.parts[0].text: "Lighthouses guide ships home."
+      texts: ["Lighthouses", "Lighthouses guide ships home."]
+expect_llm:
+  request_count: 2
+  requests[0].agent: step_one
+  requests[1].agent: step_two
+  requests[1].body: {contains: "Write one sentence about Lighthouses."}

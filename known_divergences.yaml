@@ -1,0 +1,100 @@
+# Known cross-SDK divergences.
+#
+# A conformance test whose failures are all covered by a live entry here
+# reports XFAIL and passes; if it starts passing it reports XPASS (remove the
+# entry). Expired entries stop covering failures, so someone re-checks them.
+#
+# Fields:
+#   scenario, subject: which test the entry applies to (required)
+#   checks:  failure ids "<step name> :: <check path>", "llm :: <path>",
+#            "<step name> :: error"; '*' is the only wildcard. Default ["*"].
+#   reason:  what differs, observed in the transcript
+#   issue:   upstream issue URL, once filed (M3)
+#   expires: YYYY-MM-DD; review by then
+#
+# Triage notes: every entry below was confirmed from the raw transcript of a
+# local run on 2026-10-15 (google-adk 2.12.0, adk-go v2.6.0, adk-rust 2.3.0).
+divergences:
+  # --- adk-go -------------------------------------------------------------------
+  - scenario: api_session_create_with_id_001
+    subject: go
+    checks: ["create session with id :: body.id"]
+    reason: adk-go ignores the client-chosen sessionId in POST .../sessions and generates its own id.
+    expires: "2027-01-15"
+  - scenario: evt_event_fields_001
+    subject: go
+    checks: ["one turn :: final.timestamp"]
+    reason: adk-go REST events carry no timestamp field.
+    expires: "2027-01-15"
+
+  # --- adk-rust (community) -------------------------------------------------------
+  - scenario: api_health_version_001
+    subject: rust
+    checks: ["version :: status"]
+    reason: adk-rust serves no GET /api/version (404).
+    expires: "2027-01-15"
+  - scenario: api_run_unknown_session_001
+    subject: rust
+    checks: ["run unknown session :: status", "llm :: request_count"]
+    reason: adk-rust runs the agent (HTTP 200, one LLM call) for a session id that was never created instead of rejecting the request.
+    expires: "2027-01-15"
+  - scenario: api_session_create_with_id_001
+    subject: rust
+    checks: ["create session with id :: body.id"]
+    reason: adk-rust ignores the client-chosen sessionId in POST .../sessions and generates its own id.
+    expires: "2027-01-15"
+  - scenario: evt_finish_reason_001
+    subject: rust
+    checks: ["truncated turn :: final.finishReason"]
+    reason: adk-rust serializes finishReason as Rust enum variant names (MaxTokens, Stop) instead of the Gemini API values (MAX_TOKENS, STOP).
+    expires: "2027-01-15"
+  - scenario: evt_invocation_id_001
+    subject: rust
+    checks: ["first run :: event_count"]
+    reason: adk-rust emits an extra empty partial event (no content) between the function call event and the function response event.
+    expires: "2027-01-15"
+  - scenario: evt_streaming_partials_001
+    subject: rust
+    checks: ["streaming turn :: final.content.parts[0].text", "streaming turn :: event_count"]
+    reason: With streaming on, adk-rust marks the last chunk as the final event and keeps all chunks as separate text parts, instead of emitting one aggregated text event after the partials.
+    expires: "2027-01-15"
+  - scenario: llm_generate_method_001
+    subject: rust
+    checks: ["llm :: requests[0].method"]
+    reason: adk-rust always calls streamGenerateContent, even when streaming is off.
+    expires: "2027-01-15"
+  - scenario: llm_history_001
+    subject: rust
+    checks: ["llm :: requests[1].body.contents*"]
+    reason: adk-rust sends the agent instruction as a leading user turn (no systemInstruction), so it appears in the history contents.
+    expires: "2027-01-15"
+  - scenario: llm_system_instruction_001
+    subject: rust
+    checks: ["llm :: requests[0].body.systemInstruction*", "llm :: requests[0].body.contents"]
+    reason: adk-rust sends the instruction as a user turn instead of systemInstruction and omits the agent identity text that Python and Go append.
+    expires: "2027-01-15"
+  - scenario: llm_tool_declarations_001
+    subject: rust
+    checks: ["llm :: requests[0].body.tools*"]
+    reason: adk-rust declares tools in random order (adk_core::LlmRequest.tools is a HashMap), so order-dependent checks fail; can occasionally XPASS by chance.
+    expires: "2027-01-15"
+  - scenario: tool_long_running_001
+    subject: rust
+    checks: ["start approval :: events[*].longRunningToolIds", "resume with approval :: final.content.parts[0].text"]
+    reason: adk-rust lists the tool name (request_approval), not the function call id, in longRunningToolIds; resuming with a function response returns one empty event instead of running the agent.
+    expires: "2027-01-15"
+  - scenario: tool_parallel_calls_001
+    subject: rust
+    checks: ["parallel tool turn :: function_responses[*].id", "llm :: requests[1].body.contents[-1].parts*"]
+    reason: adk-rust drops call ids from function response events, and sends parallel function responses to the model as separate contents instead of one content with two parts.
+    expires: "2027-01-15"
+  - scenario: tool_return_wrapping_001
+    subject: rust
+    checks: ["tool turn :: function_responses[0].response", "tool turn :: function_responses[0].id"]
+    reason: 'adk-rust does not wrap non-object tool results as {"result": ...} (sends 5, not {"result": 5}) and drops the call id from the function response event.'
+    expires: "2027-01-15"
+  - scenario: tool_roundtrip_001
+    subject: rust
+    checks: ["tool turn :: event_count", "tool turn :: authors", "tool turn :: function_calls[0].id", "tool turn :: function_responses[0].id"]
+    reason: adk-rust emits an extra empty partial event, and does not generate or pair function call ids when the model omits them.
+    expires: "2027-01-15"

@@ -1,0 +1,15 @@
+id: api_run_unknown_app_001
+area: api
+description: Running an app that does not exist is rejected.
+behaviors: [API-013]
+model_script:
+  - reply: {text: "should not be called"}
+steps:
+  - adk.create_session: {app: hello_agent, user: u1}
+    save_as: session
+  - name: run unknown app
+    adk.run_sse: {app: no_such_app, user: u1, session: "{{session.body.id}}", text: "hi"}
+    expect:
+      status: {ne: 200}
+expect_llm:
+  request_count: 0

@@ -1,0 +1,23 @@
+id: tools_agent_smoke
+area: smoke
+description: tools_agent calls get_weather once and answers from the result.
+behaviors: [TOOL-001, EVT-005]
+fixture: tools_agent
+model_script:
+  - when: {agent: tools_agent, has_function_response: get_weather}
+    reply: {text: "It is sunny in Paris."}
+  - when: {agent: tools_agent, call: 1}
+    reply: {function_calls: [{name: get_weather, args: {city: Paris}}]}
+steps:
+  - adk.create_session: {app: tools_agent, user: u1}
+    save_as: session
+  - name: weather turn
+    adk.run_sse: {app: tools_agent, user: u1, session: "{{session.body.id}}", text: "Weather in Paris?"}
+    expect:
+      status: 200
+      final.author: tools_agent
+      final.content.parts[0].text: "It is sunny in Paris."
+      function_calls[0].name: get_weather
+      function_responses[0].response.forecast: sunny
+expect_llm:
+  request_count: 2

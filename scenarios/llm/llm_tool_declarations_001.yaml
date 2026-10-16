@@ -1,0 +1,13 @@
+id: llm_tool_declarations_001
+area: llm
+description: tools_agent declares the shared tools, in order; schemas are compared across SDKs.
+behaviors: [LLM-002, TOOL-001, TOOL-002]
+model_script:
+  - reply: {text: "ok"}
+steps:
+  - adk.create_session: {app: tools_agent, user: u1}
+    save_as: session
+  - adk.run_sse: {app: tools_agent, user: u1, session: "{{session.body.id}}", text: "hi"}
+expect_llm:
+  requests[0].body.tools[*].functionDeclarations[*].name: [[add, get_weather, set_state, fail_always, request_approval]]
+  requests[0].body.tools[0].functionDeclarations[0].description: {contains: "Adds two integers."}

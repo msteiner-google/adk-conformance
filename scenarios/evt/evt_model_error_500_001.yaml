@@ -1,0 +1,13 @@
+id: evt_model_error_500_001
+area: evt
+description: A 500 from the model. Behavior is compared across SDKs.
+behaviors: [EVT-009]
+model_script:
+  - reply: {error: {code: 500, message: "Internal error (scripted)."}}
+steps:
+  - adk.create_session: {app: hello_agent, user: u1}
+    save_as: session
+  - name: failing turn
+    adk.run_sse: {app: hello_agent, user: u1, session: "{{session.body.id}}", text: "hi"}
+    expect:
+      status: {exists: true}

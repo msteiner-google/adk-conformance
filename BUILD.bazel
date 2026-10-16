@@ -1,1 +1,25 @@
 # adk-monitor root package.
+load("@rules_python//python:py_test.bzl", "py_test")
+
+exports_files(["known_divergences.yaml"])
+
+SCENARIO_GROUPS = [
+    "//scenarios/agt:all_scenarios",
+    "//scenarios/api:all_scenarios",
+    "//scenarios/core:all_scenarios",
+    "//scenarios/evt:all_scenarios",
+    "//scenarios/llm:all_scenarios",
+    "//scenarios/smoke:all_scenarios",
+    "//scenarios/tool:all_scenarios",
+]
+
+# Validates known_divergences.yaml against every scenario in the repo.
+py_test(
+    name = "known_divergences_lint",
+    size = "small",
+    srcs = ["//harness:lint.py"],
+    args = ["$(rootpath known_divergences.yaml)"] + ["$(rootpaths %s)" % g for g in SCENARIO_GROUPS],
+    data = ["known_divergences.yaml"] + SCENARIO_GROUPS,
+    main = "//harness:lint.py",
+    deps = ["//harness"],
+)

@@ -1,0 +1,21 @@
+id: parallel_agent_smoke
+area: smoke
+description: Both branches of parallel_agent answer in one turn.
+behaviors: [AGT-010]
+fixture: parallel_agent
+model_script:
+  - when: {agent: left}
+    reply: {text: "Left answer."}
+  - when: {agent: right}
+    reply: {text: "Right answer."}
+steps:
+  - adk.create_session: {app: parallel_agent, user: u1}
+    save_as: session
+  - name: parallel turn
+    adk.run_sse: {app: parallel_agent, user: u1, session: "{{session.body.id}}", text: "Go"}
+    expect:
+      status: 200
+      texts: {contains: "Left answer."}
+      authors: {contains: "right"}
+expect_llm:
+  request_count: 2

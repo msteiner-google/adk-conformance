@@ -1,0 +1,13 @@
+id: api_health_version_001
+area: api
+description: /health and /version exist.
+behaviors: [API-014]
+steps:
+  - name: health
+    http: {method: GET, path: /health}
+    expect:
+      status: 200
+  - name: version
+    http: {method: GET, path: /version}
+    expect:
+      status: 200

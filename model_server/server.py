@@ -21,12 +21,24 @@ Rule format::
 
 ``when`` keys:
   * ``turn``: 1-based index of the LLM request within the run.
+  * ``agent``: the calling agent, read from the ``AGENT=<name>.`` marker that
+    fixture instructions start with (see fixtures/FIXTURES.md). Looked up in
+    ``systemInstruction`` first, then in the request contents, because some
+    SDKs send the instruction as a user turn.
+  * ``call``: 1-based index of the request among that agent's requests.
+  * ``has_function_response``: ``true`` or a tool name; the newest content
+    must carry a function response (for that tool).
   * ``last_user_text_contains``: substring of the last user text part.
+  * ``newest_content_contains``: substring of the newest content, serialized
+    as JSON (matches text and function-response payloads alike).
 
-``reply`` keys (one of ``text``, ``function_calls`` or ``error``):
+``reply`` keys (one of ``text``, ``function_calls``, ``empty`` or ``error``):
   * ``text``: model text. ``chunks`` optionally splits it for streaming.
-  * ``function_calls``: list of ``{name, args}``; emitted as parallel calls.
+  * ``function_calls``: list of ``{name, args, id?}``; emitted as parallel
+    calls. Without ``id`` the SDK has to generate one.
+  * ``empty``: ``true`` returns a candidate with no parts.
   * ``error``: ``{code, message}``; returned as an HTTP error.
+  * ``finish_reason``: overrides ``STOP`` on the final chunk.
 
 The module only uses the standard library, so it runs without Bazel too::
 
@@ -59,8 +71,42 @@ _STATUS_NAMES = {
 }
 
 
+_MARKER_RE = re.compile(r"AGENT=([A-Za-z0-9_\-]+)\.")
+
+
 class ScriptError(Exception):
   """Raised when no rule in the model script matches a request."""
+
+
+def _texts(content: dict[str, Any] | None) -> list[str]:
+  return [p["text"] for p in (content or {}).get("parts") or [] if isinstance(p, dict) and "text" in p]
+
+
+def detect_agent(body: dict[str, Any]) -> str | None:
+  """Returns the agent named by the first ``AGENT=<name>.`` marker, if any."""
+  system = body.get("systemInstruction") or body.get("system_instruction")
+  for text in _texts(system):
+    match = _MARKER_RE.search(text)
+    if match:
+      return match.group(1)
+  for content in body.get("contents") or []:
+    for text in _texts(content):
+      match = _MARKER_RE.search(text)
+      if match:
+        return match.group(1)
+  return None
+
+
+def _newest_function_responses(body: dict[str, Any]) -> list[str]:
+  contents = body.get("contents") or []
+  if not contents:
+    return []
+  names = []
+  for part in contents[-1].get("parts") or []:
+    response = part.get("functionResponse") or part.get("function_response")
+    if response is not None:
+      names.append(response.get("name", ""))
+  return names
 
 
 def _last_user_text(body: dict[str, Any]) -> str:
@@ -82,20 +128,41 @@ class ModelScript:
       if "reply" not in rule:
         raise ValueError(f"model_script rule {i} has no 'reply'")
 
-  def reply_for(self, body: dict[str, Any], turn: int) -> dict[str, Any]:
+  def reply_for(self, body: dict[str, Any], turn: int, agent: str | None = None,
+                agent_call: int = 0) -> dict[str, Any]:
     for rule in self.rules:
-      if self._matches(rule.get("when") or {}, body, turn):
+      if self._matches(rule.get("when") or {}, body, turn, agent, agent_call):
         return rule["reply"]
-    raise ScriptError(f"no model_script rule matches LLM request #{turn}")
+    raise ScriptError(
+        f"no model_script rule matches LLM request #{turn} (agent={agent}, call={agent_call})")
 
   @staticmethod
-  def _matches(when: dict[str, Any], body: dict[str, Any], turn: int) -> bool:
+  def _matches(when: dict[str, Any], body: dict[str, Any], turn: int, agent: str | None,
+               agent_call: int) -> bool:
     for key, expected in when.items():
       if key == "turn":
         if int(expected) != turn:
           return False
+      elif key == "agent":
+        if expected != agent:
+          return False
+      elif key == "call":
+        if int(expected) != agent_call:
+          return False
+      elif key == "has_function_response":
+        names = _newest_function_responses(body)
+        if expected is True and not names:
+          return False
+        if expected is False and names:
+          return False
+        if isinstance(expected, str) and expected not in names:
+          return False
       elif key == "last_user_text_contains":
         if str(expected) not in _last_user_text(body):
+          return False
+      elif key == "newest_content_contains":
+        contents = body.get("contents") or []
+        if not contents or str(expected) not in json.dumps(contents[-1]):
           return False
       else:
         raise ValueError(f"unknown 'when' key in model_script: {key!r}")
@@ -103,21 +170,27 @@ class ModelScript:
 
 
 def _parts_for(reply: dict[str, Any]) -> list[dict[str, Any]]:
+  if reply.get("empty"):
+    return []
   if "function_calls" in reply:
-    return [
-        {"functionCall": {"name": c["name"], "args": c.get("args") or {}}}
-        for c in reply["function_calls"]
-    ]
+    parts = []
+    for call in reply["function_calls"]:
+      function_call = {"name": call["name"], "args": call.get("args") or {}}
+      if call.get("id"):
+        function_call["id"] = call["id"]
+      parts.append({"functionCall": function_call})
+    return parts
   return [{"text": str(reply.get("text", ""))}]
 
 
-def _response(parts: list[dict[str, Any]], final: bool) -> dict[str, Any]:
+def _response(parts: list[dict[str, Any]], final: bool,
+              finish_reason: str = "STOP") -> dict[str, Any]:
   candidate: dict[str, Any] = {
       "content": {"role": "model", "parts": parts},
       "index": 0,
   }
   if final:
-    candidate["finishReason"] = "STOP"
+    candidate["finishReason"] = finish_reason
   response: dict[str, Any] = {
       "candidates": [candidate],
       "modelVersion": "scripted-model",
@@ -133,12 +206,13 @@ def _response(parts: list[dict[str, Any]], final: bool) -> dict[str, Any]:
 
 
 def _stream_chunks(reply: dict[str, Any]) -> list[dict[str, Any]]:
-  if "function_calls" in reply:
-    return [_response(_parts_for(reply), final=True)]
+  finish = reply.get("finish_reason", "STOP")
+  if "function_calls" in reply or reply.get("empty"):
+    return [_response(_parts_for(reply), final=True, finish_reason=finish)]
   chunks = reply.get("chunks") or [str(reply.get("text", ""))]
   out = []
   for i, chunk in enumerate(chunks):
-    out.append(_response([{"text": chunk}], final=i == len(chunks) - 1))
+    out.append(_response([{"text": chunk}], final=i == len(chunks) - 1, finish_reason=finish))
   return out
 
 
@@ -171,11 +245,12 @@ class ScriptedModelServer:
     with self._lock:
       return copy.deepcopy(self.requests)
 
-  def _record(self, entry: dict[str, Any]) -> int:
+  def _record(self, entry: dict[str, Any]) -> tuple[int, int]:
     with self._lock:
       entry["turn"] = len(self.requests) + 1
+      entry["agent_call"] = 1 + sum(1 for r in self.requests if r.get("agent") == entry.get("agent"))
       self.requests.append(entry)
-      return entry["turn"]
+      return entry["turn"], entry["agent_call"]
 
   def _handler(self):
     server = self
@@ -221,7 +296,9 @@ class ScriptedModelServer:
           self._send_error(400, f"invalid JSON body: {e}")
           return
         query = parse_qs(url.query)
-        turn = server._record({
+        agent = detect_agent(body)
+        turn, agent_call = server._record({
+            "agent": agent,
             "method": match["method"],
             "model": match["model"],
             "api_version": match["version"],
@@ -231,7 +308,7 @@ class ScriptedModelServer:
             "body": body,
         })
         try:
-          reply = server.script.reply_for(body, turn)
+          reply = server.script.reply_for(body, turn, agent, agent_call)
         except ScriptError as e:
           self._send_error(500, str(e))
           return
@@ -240,7 +317,8 @@ class ScriptedModelServer:
           self._send_error(int(err.get("code", 500)), str(err.get("message", "scripted error")))
           return
         if match["method"] == "generateContent":
-          self._send_json(200, _response(_parts_for(reply), final=True))
+          finish = reply.get("finish_reason", "STOP")
+          self._send_json(200, _response(_parts_for(reply), final=True, finish_reason=finish))
           return
         chunks = _stream_chunks(reply)
         if query.get("alt", [""])[0] == "sse":

@@ -1,0 +1,26 @@
+id: tool_roundtrip_001
+area: tool
+description: >
+  The model calls add without a call id. The SDK generates one, runs the tool,
+  pairs the response with the same id, and sends it back to the model.
+behaviors: [TOOL-007, EVT-005]
+model_script:
+  - when: {agent: tools_agent, has_function_response: add}
+    reply: {text: "The sum is 5."}
+  - when: {agent: tools_agent, call: 1}
+    reply: {function_calls: [{name: add, args: {a: 2, b: 3}}]}
+steps:
+  - adk.create_session: {app: tools_agent, user: u1}
+    save_as: session
+  - name: tool turn
+    adk.run_sse: {app: tools_agent, user: u1, session: "{{session.body.id}}", text: "2+3?"}
+    expect:
+      event_count: 3
+      authors: [tools_agent, tools_agent, tools_agent]
+      function_calls[0].id: {regex: ".+"}
+      function_responses[0].id: {same_as: "function_calls[0].id"}
+      final.content.parts[0].text: "The sum is 5."
+expect_llm:
+  request_count: 2
+  requests[1].body.contents[-1].parts[0].functionResponse.name: add
+  requests[1].body.contents[-2].parts[0].functionCall.name: add

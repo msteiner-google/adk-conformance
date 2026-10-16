@@ -1,0 +1,16 @@
+id: api_run_state_delta_001
+area: api
+description: stateDelta on the run request is applied to the session.
+behaviors: [API-011]
+model_script:
+  - reply: {text: "ok"}
+steps:
+  - adk.create_session: {app: hello_agent, user: u1}
+    save_as: session
+  - adk.run_sse: {app: hello_agent, user: u1, session: "{{session.body.id}}", text: "hi", state_delta: {mood: happy}}
+    expect:
+      status: 200
+  - name: get session
+    adk.get_session: {app: hello_agent, user: u1, session: "{{session.body.id}}"}
+    expect:
+      body.state.mood: happy

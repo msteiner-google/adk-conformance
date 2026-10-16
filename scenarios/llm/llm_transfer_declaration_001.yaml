@@ -1,0 +1,12 @@
+id: llm_transfer_declaration_001
+area: llm
+description: An agent with sub-agents gets a transfer_to_agent function declaration.
+behaviors: [LLM-005]
+model_script:
+  - reply: {text: "ok"}
+steps:
+  - adk.create_session: {app: transfer_agent, user: u1}
+    save_as: session
+  - adk.run_sse: {app: transfer_agent, user: u1, session: "{{session.body.id}}", text: "hi"}
+expect_llm:
+  requests[0].body.tools: {contains: transfer_to_agent}

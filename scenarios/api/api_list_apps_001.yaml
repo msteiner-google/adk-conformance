@@ -1,0 +1,10 @@
+id: api_list_apps_001
+area: api
+description: GET /list-apps lists every fixture app.
+behaviors: [API-001, API-002]
+steps:
+  - name: list apps
+    adk.list_apps: {}
+    expect:
+      status: 200
+      body: {contains: hello_agent}

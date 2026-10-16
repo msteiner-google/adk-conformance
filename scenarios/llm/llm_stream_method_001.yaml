@@ -1,0 +1,13 @@
+id: llm_stream_method_001
+area: llm
+description: With streaming, the SDK calls streamGenerateContent with alt=sse.
+behaviors: [LLM-008]
+model_script:
+  - reply: {text: "ok"}
+steps:
+  - adk.create_session: {app: hello_agent, user: u1}
+    save_as: session
+  - adk.run_sse: {app: hello_agent, user: u1, session: "{{session.body.id}}", text: "hi", streaming: true}
+expect_llm:
+  requests[0].method: streamGenerateContent
+  requests[0].query.alt: sse

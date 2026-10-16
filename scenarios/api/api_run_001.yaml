@@ -1,0 +1,15 @@
+id: api_run_001
+area: api
+description: POST /run returns the run's events as a JSON array.
+behaviors: [API-008]
+model_script:
+  - reply: {text: "Hello from the scripted model!"}
+steps:
+  - adk.create_session: {app: hello_agent, user: u1}
+    save_as: session
+  - name: run
+    adk.run: {app: hello_agent, user: u1, session: "{{session.body.id}}", text: "Say hello"}
+    expect:
+      status: 200
+      final.author: hello_agent
+      final.content.parts[0].text: "Hello from the scripted model!"

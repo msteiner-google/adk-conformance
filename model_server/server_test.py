@@ -59,5 +59,38 @@ class ServerTest(unittest.TestCase):
     self.assertEqual(recorded[1]["method"], "generateContent")
 
 
+class AgentMatchingTest(unittest.TestCase):
+
+  def test_agent_call_and_function_response(self):
+    script = ModelScript([
+        {"when": {"agent": "a", "has_function_response": "add"}, "reply": {"text": "done"}},
+        {"when": {"agent": "a", "call": 1},
+         "reply": {"function_calls": [{"name": "add", "args": {"a": 1}, "id": "c1"}]}},
+        {"when": {"agent": "b"}, "reply": {"empty": True}},
+    ])
+    server = ScriptedModelServer(script)
+    url = server.start()
+    try:
+      sys_a = {"systemInstruction": {"parts": [{"text": "AGENT=a. Do it."}]}}
+      _, text = _post(f"{url}/v1beta/models/m:generateContent",
+                      {**sys_a, "contents": [{"role": "user", "parts": [{"text": "hi"}]}]})
+      call = json.loads(text)["candidates"][0]["content"]["parts"][0]["functionCall"]
+      self.assertEqual(call, {"name": "add", "args": {"a": 1}, "id": "c1"})
+
+      _, text = _post(f"{url}/v1beta/models/m:generateContent", {**sys_a, "contents": [
+          {"role": "user", "parts": [{"functionResponse": {"name": "add", "response": {"result": 1}}}]}]})
+      self.assertEqual(json.loads(text)["candidates"][0]["content"]["parts"][0]["text"], "done")
+
+      # Marker in contents (instruction sent as a user turn) also identifies the agent.
+      _, text = _post(f"{url}/v1beta/models/m:generateContent",
+                      {"contents": [{"role": "user", "parts": [{"text": "AGENT=b. x"}]}]})
+      self.assertEqual(json.loads(text)["candidates"][0]["content"]["parts"], [])
+
+      recorded = server.recorded_requests()
+      self.assertEqual([(r["agent"], r["agent_call"]) for r in recorded], [("a", 1), ("a", 2), ("b", 1)])
+    finally:
+      server.stop()
+
+
 if __name__ == "__main__":
   unittest.main()

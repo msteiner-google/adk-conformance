@@ -1,0 +1,15 @@
+id: api_session_delete_001
+area: api
+description: DELETE removes the session; a later GET returns 404.
+behaviors: [API-005, API-006]
+steps:
+  - adk.create_session: {app: hello_agent, user: u1}
+    save_as: session
+  - name: delete session
+    adk.delete_session: {app: hello_agent, user: u1, session: "{{session.body.id}}"}
+    expect:
+      status: {in: [200, 204]}
+  - name: get deleted session
+    adk.get_session: {app: hello_agent, user: u1, session: "{{session.body.id}}"}
+    expect:
+      status: 404

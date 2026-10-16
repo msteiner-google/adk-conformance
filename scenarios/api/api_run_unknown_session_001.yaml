@@ -1,0 +1,13 @@
+id: api_run_unknown_session_001
+area: api
+description: Running against a session that does not exist is rejected.
+behaviors: [API-013]
+model_script:
+  - reply: {text: "should not be called"}
+steps:
+  - name: run unknown session
+    adk.run_sse: {app: hello_agent, user: u1, session: no-such-session, text: "hi"}
+    expect:
+      status: {ne: 200}
+expect_llm:
+  request_count: 0

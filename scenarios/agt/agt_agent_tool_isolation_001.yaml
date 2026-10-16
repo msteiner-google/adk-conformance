@@ -1,0 +1,20 @@
+id: agt_agent_tool_isolation_001
+area: agt
+description: An AgentTool's inner agent events are not added to the parent session.
+behaviors: [TOOL-013]
+model_script:
+  - when: {agent: agent_tool_agent, has_function_response: helper}
+    reply: {text: "The helper says 4."}
+  - when: {agent: agent_tool_agent, call: 1}
+    reply: {function_calls: [{name: helper, args: {request: "What is 2+2?"}}]}
+  - when: {agent: helper}
+    reply: {text: "4"}
+steps:
+  - adk.create_session: {app: agent_tool_agent, user: u1}
+    save_as: session
+  - adk.run_sse: {app: agent_tool_agent, user: u1, session: "{{session.body.id}}", text: "Ask the helper"}
+  - name: get session
+    adk.get_session: {app: agent_tool_agent, user: u1, session: "{{session.body.id}}"}
+    expect:
+      authors: {not_contains: helper}
+      function_responses[0].name: helper

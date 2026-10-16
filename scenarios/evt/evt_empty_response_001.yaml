@@ -1,0 +1,13 @@
+id: evt_empty_response_001
+area: evt
+description: The model returns a candidate with no parts. Compared across SDKs.
+behaviors: [EVT-012]
+model_script:
+  - reply: {empty: true}
+steps:
+  - adk.create_session: {app: hello_agent, user: u1}
+    save_as: session
+  - name: empty turn
+    adk.run_sse: {app: hello_agent, user: u1, session: "{{session.body.id}}", text: "hi"}
+    expect:
+      status: {exists: true}

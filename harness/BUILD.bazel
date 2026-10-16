@@ -1,3 +1,4 @@
+load("@rules_python//python:py_binary.bzl", "py_binary")
 load("@rules_python//python:py_library.bzl", "py_library")
 load("@rules_python//python:py_test.bzl", "py_test")
 
@@ -6,6 +7,9 @@ py_library(
     srcs = [
         "__init__.py",
         "adk_client.py",
+        "compare.py",
+        "lint.py",
+        "normalize.py",
         "paths.py",
         "runner.py",
     ],
@@ -16,8 +20,20 @@ py_library(
     ],
 )
 
-# Entry point used by the generated conformance tests (tools/bazel/conformance.bzl).
-exports_files(["run_scenario.py"])
+# Entry points used by the generated tests (tools/bazel/conformance.bzl).
+exports_files([
+    "lint.py",
+    "run_scenario.py",
+])
+
+# Differential oracle and report:
+#   bazel run //harness:compare -- --in "$PWD/bazel-testlogs" --out /tmp/report
+py_binary(
+    name = "compare",
+    srcs = ["compare.py"],
+    visibility = ["//visibility:public"],
+    deps = [":harness"],
+)
 
 py_test(
     name = "paths_test",
@@ -30,5 +46,19 @@ py_test(
     name = "adk_client_test",
     size = "small",
     srcs = ["adk_client_test.py"],
+    deps = [":harness"],
+)
+
+py_test(
+    name = "runner_test",
+    size = "small",
+    srcs = ["runner_test.py"],
+    deps = [":harness"],
+)
+
+py_test(
+    name = "compare_test",
+    size = "small",
+    srcs = ["compare_test.py"],
     deps = [":harness"],
 )

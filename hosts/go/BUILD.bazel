@@ -1,21 +1,42 @@
 load("@rules_go//go:def.bzl", "go_binary")
 
-# Go ADK host: serves the hello_agent fixture through adk-go's own REST API (/api).
+# Go ADK host: serves every fixture in fixtures/FIXTURES.md as a separate app
+# through adk-go's own REST API (/api).
 go_binary(
     name = "host",
-    srcs = ["main.go"],
+    srcs = [
+        "fixtures.go",
+        "fixtures_agent_tool_agent.go",
+        "fixtures_hello_agent.go",
+        "fixtures_loop_agent.go",
+        "fixtures_parallel_agent.go",
+        "fixtures_sequential_agent.go",
+        "fixtures_template_agent.go",
+        "fixtures_tools_agent.go",
+        "fixtures_transfer_agent.go",
+        "main.go",
+        "tools.go",
+    ],
     visibility = ["//visibility:public"],
     deps = [
         "@org_golang_google_adk_v2//agent",
         "@org_golang_google_adk_v2//agent/llmagent",
+        "@org_golang_google_adk_v2//agent/workflowagents/loopagent",
+        "@org_golang_google_adk_v2//agent/workflowagents/parallelagent",
+        "@org_golang_google_adk_v2//agent/workflowagents/sequentialagent",
         "@org_golang_google_adk_v2//artifact",
         "@org_golang_google_adk_v2//cmd/launcher",
         "@org_golang_google_adk_v2//cmd/launcher/universal",
         "@org_golang_google_adk_v2//cmd/launcher/web",
         "@org_golang_google_adk_v2//cmd/launcher/web/api",
         "@org_golang_google_adk_v2//memory",
+        "@org_golang_google_adk_v2//model",
         "@org_golang_google_adk_v2//model/gemini",
         "@org_golang_google_adk_v2//session",
+        "@org_golang_google_adk_v2//tool",
+        "@org_golang_google_adk_v2//tool/agenttool",
+        "@org_golang_google_adk_v2//tool/exitlooptool",
+        "@org_golang_google_adk_v2//tool/functiontool",
         "@org_golang_google_genai//:genai",
     ],
 )

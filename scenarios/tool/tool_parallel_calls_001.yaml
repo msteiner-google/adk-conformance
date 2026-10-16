@@ -1,0 +1,24 @@
+id: tool_parallel_calls_001
+area: tool
+description: Two function calls in one model turn both run; responses go back in one content, in call order.
+behaviors: [TOOL-006]
+model_script:
+  - when: {agent: tools_agent, has_function_response: true}
+    reply: {text: "Done."}
+  - when: {agent: tools_agent, call: 1}
+    reply:
+      function_calls:
+        - {name: add, args: {a: 1, b: 2}, id: call-1}
+        - {name: get_weather, args: {city: Rome}, id: call-2}
+steps:
+  - adk.create_session: {app: tools_agent, user: u1}
+    save_as: session
+  - name: parallel tool turn
+    adk.run_sse: {app: tools_agent, user: u1, session: "{{session.body.id}}", text: "Both please"}
+    expect:
+      function_responses[*].name: [add, get_weather]
+      function_responses[*].id: [call-1, call-2]
+expect_llm:
+  request_count: 2
+  requests[1].body.contents[-1].parts: {len: 2}
+  requests[1].body.contents[-1].parts[*].functionResponse.name: [add, get_weather]

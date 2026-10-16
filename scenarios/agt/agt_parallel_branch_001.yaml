@@ -1,0 +1,16 @@
+id: agt_parallel_branch_001
+area: agt
+description: ParallelAgent children run on separate branches. Branch names are compared across SDKs.
+behaviors: [AGT-010]
+model_script:
+  - when: {agent: left}
+    reply: {text: "Left answer."}
+  - when: {agent: right}
+    reply: {text: "Right answer."}
+steps:
+  - adk.create_session: {app: parallel_agent, user: u1}
+    save_as: session
+  - name: parallel turn
+    adk.run_sse: {app: parallel_agent, user: u1, session: "{{session.body.id}}", text: "Go"}
+    expect:
+      events[*].branch: {len: 2}

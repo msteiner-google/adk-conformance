@@ -1,0 +1,17 @@
+id: tool_return_wrapping_001
+area: tool
+description: 'A tool returning a bare integer is wrapped as {"result": <value>}.'
+behaviors: [TOOL-004]
+model_script:
+  - when: {agent: tools_agent, has_function_response: add}
+    reply: {text: "5"}
+  - when: {agent: tools_agent, call: 1}
+    reply: {function_calls: [{name: add, args: {a: 2, b: 3}, id: call-add-1}]}
+steps:
+  - adk.create_session: {app: tools_agent, user: u1}
+    save_as: session
+  - name: tool turn
+    adk.run_sse: {app: tools_agent, user: u1, session: "{{session.body.id}}", text: "2+3?"}
+    expect:
+      function_responses[0].response: {result: 5}
+      function_responses[0].id: call-add-1

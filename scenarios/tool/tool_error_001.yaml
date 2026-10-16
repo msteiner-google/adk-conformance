@@ -1,0 +1,16 @@
+id: tool_error_001
+area: tool
+description: A tool that fails. Compared across SDKs (error function response vs aborted run).
+behaviors: [TOOL-008]
+model_script:
+  - when: {agent: tools_agent, has_function_response: fail_always}
+    reply: {text: "Recovered."}
+  - when: {agent: tools_agent, call: 1}
+    reply: {function_calls: [{name: fail_always, args: {}, id: call-fail}]}
+steps:
+  - adk.create_session: {app: tools_agent, user: u1}
+    save_as: session
+  - name: failing tool turn
+    adk.run_sse: {app: tools_agent, user: u1, session: "{{session.body.id}}", text: "Break it"}
+    expect:
+      status: {exists: true}

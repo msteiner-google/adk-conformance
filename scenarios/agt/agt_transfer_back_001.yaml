@@ -1,0 +1,21 @@
+id: agt_transfer_back_001
+area: agt
+description: A sub-agent can transfer back to its parent.
+behaviors: [AGT-006]
+model_script:
+  - when: {agent: transfer_agent, call: 1}
+    reply: {function_calls: [{name: transfer_to_agent, args: {agent_name: greeter}}]}
+  - when: {agent: greeter}
+    reply: {function_calls: [{name: transfer_to_agent, args: {agent_name: transfer_agent}}]}
+  - when: {agent: transfer_agent, call: 2}
+    reply: {text: "Back at the root."}
+steps:
+  - adk.create_session: {app: transfer_agent, user: u1}
+    save_as: session
+  - name: transfer and back
+    adk.run_sse: {app: transfer_agent, user: u1, session: "{{session.body.id}}", text: "Hi!"}
+    expect:
+      final.author: transfer_agent
+      final.content.parts[0].text: "Back at the root."
+expect_llm:
+  requests[*].agent: [transfer_agent, greeter, transfer_agent]

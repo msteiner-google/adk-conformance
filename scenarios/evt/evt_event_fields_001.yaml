@@ -1,0 +1,18 @@
+id: evt_event_fields_001
+area: evt
+description: A model event carries the documented fields (id, invocationId, author, timestamp, content, actions).
+behaviors: [EVT-001, EVT-002]
+model_script:
+  - reply: {text: "Hello from the scripted model!"}
+steps:
+  - adk.create_session: {app: hello_agent, user: u1}
+    save_as: session
+  - name: one turn
+    adk.run_sse: {app: hello_agent, user: u1, session: "{{session.body.id}}", text: "Say hello"}
+    expect:
+      final.id: {regex: ".+"}
+      final.invocationId: {regex: ".+"}
+      final.author: hello_agent
+      final.timestamp: {exists: true}
+      final.actions: {exists: true}
+      final.content.role: model

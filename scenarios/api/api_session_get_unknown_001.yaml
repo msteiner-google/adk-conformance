@@ -1,0 +1,9 @@
+id: api_session_get_unknown_001
+area: api
+description: GET on a session that does not exist returns 404.
+behaviors: [API-006]
+steps:
+  - name: get unknown session
+    adk.get_session: {app: hello_agent, user: u1, session: does-not-exist}
+    expect:
+      status: 404

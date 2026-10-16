@@ -102,6 +102,19 @@ def parse_sse(text: str) -> list[Any]:
   return events
 
 
+def sse_framing(text: str) -> str:
+  """'data: ' (space after the colon), 'data:' (no space) or 'mixed'."""
+  spaced = unspaced = 0
+  for line in text.replace("\r\n", "\n").split("\n"):
+    if line.startswith("data: "):
+      spaced += 1
+    elif line.startswith("data:"):
+      unspaced += 1
+  if spaced and unspaced:
+    return "mixed"
+  return "data: " if spaced else ("data:" if unspaced else "none")
+
+
 def final_event(events: list[Any]) -> dict[str, Any] | None:
   """The last non-partial event that carries content."""
   for event in reversed(events):

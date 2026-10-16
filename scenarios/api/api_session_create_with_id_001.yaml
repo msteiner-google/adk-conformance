@@ -1,0 +1,10 @@
+id: api_session_create_with_id_001
+area: api
+description: A client-chosen sessionId in the create request is honored.
+behaviors: [API-003]
+steps:
+  - name: create session with id
+    adk.create_session: {app: hello_agent, user: u1, session_id: fixed-session-1}
+    expect:
+      status: 200
+      body.id: fixed-session-1
