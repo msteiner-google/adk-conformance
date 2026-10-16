@@ -108,22 +108,26 @@ divergences:
   - scenario: a2a_srv_cancel_001
     subject: go
     checks: ["cancel again :: error_code"]
-    reason: CancelTask on an already canceled task returns the task instead of TaskNotCancelableError (-32002); the bare a2a-go host does the same, so it comes from a2a-go v2.6.0.
+    reason: CancelTask on an already canceled task returns the task instead of TaskNotCancelableError (-32002); the bare a2a-go host does the same. a2a-go makes re-cancel idempotent on purpose, against the spec text (spec question filed).
+    issue: https://github.com/a2aproject/A2A/issues/2358
     expires: "2027-01-15"
   - scenario: a2a_srv_cancel_001
     subject: a2a-go
     checks: ["cancel again :: error_code"]
-    reason: a2a-go v2.6.0 returns the canceled task instead of TaskNotCancelableError (-32002) when it is cancelled again.
+    reason: a2a-go v2.6.0 returns the canceled task instead of TaskNotCancelableError (-32002) when it is cancelled again (deliberately idempotent; the spec says error).
+    issue: https://github.com/a2aproject/A2A/issues/2358
     expires: "2027-01-15"
   - scenario: a2a_srv_version_001
     subject: go
     checks: ["unsupported version :: error_code"]
     reason: An unsupported A2A-Version header (99.0) is served as v1 instead of VersionNotSupportedError (-32009); the bare a2a-go host does the same (a2a-go v2.6.0; ACTS VER-NEG-001 fails too).
+    issue: https://github.com/a2aproject/a2a-go/issues/469
     expires: "2027-01-15"
   - scenario: a2a_srv_version_001
     subject: a2a-go
     checks: ["unsupported version :: error_code"]
     reason: a2a-go v2.6.0 accepts any A2A-Version header value instead of returning VersionNotSupportedError (-32009); ACTS VER-NEG-001 fails at this version.
+    issue: https://github.com/a2aproject/a2a-go/issues/469
     expires: "2027-01-15"
 
   # --- A2A: adk-python client vs adk-go server -------------------------------------
@@ -174,7 +178,8 @@ divergences:
   - scenario: a2a_srv_cancel_001
     subject: a2a-rs
     checks: ["cancel again :: error_code"]
-    reason: a2a-server-lf 0.5.2 returns the canceled task instead of TaskNotCancelableError (-32002) when it is cancelled again (same as a2a-go).
+    reason: a2a-server-lf 0.5.2 returns the canceled task instead of TaskNotCancelableError (-32002) when it is cancelled again; idempotent on purpose (a2aproject/a2a-rs#195), against the spec text (spec question filed).
+    issue: https://github.com/a2aproject/A2A/issues/2358
     expires: "2027-01-15"
 
   # --- A2A: adk-rust client (RemoteA2aV1Agent) --------------------------------------
