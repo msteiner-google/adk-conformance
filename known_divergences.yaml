@@ -20,11 +20,13 @@ divergences:
     subject: go
     checks: ["create session with id :: body.id"]
     reason: adk-go ignores the client-chosen sessionId in POST .../sessions and generates its own id.
+    issue: https://github.com/google/adk-go/issues/1869
     expires: "2027-01-15"
   - scenario: evt_event_fields_001
     subject: go
     checks: ["one turn :: final.timestamp"]
     reason: adk-go REST events carry no timestamp field.
+    issue: https://github.com/google/adk-go/issues/1868
     expires: "2027-01-15"
 
   # --- adk-rust (community) -------------------------------------------------------
