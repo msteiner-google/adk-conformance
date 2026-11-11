@@ -11,8 +11,8 @@ Design doc: <https://docs.google.com/document/d/17Az5DdRkVcSm5RWNCr43ZdadbuPJA_W
 
 | Subject | SDK | Host | Role |
 |---|---|---|---|
-| `python` | google-adk 2.12.0 (a2a-sdk 1.2.2) | `//hosts/python:host` | ADK |
-| `go` | google.golang.org/adk/v2 v2.6.0 (a2a-go v2.6.0) | `//hosts/go:host` | ADK |
+| `python` | google-adk 2.13.0 (a2a-sdk 1.2.2) | `//hosts/python:host` | ADK |
+| `go` | google.golang.org/adk/v2 v2.7.1 (a2a-go v2.6.0) | `//hosts/go:host` | ADK |
 | `rust` | adk-rust 2.3.0 (community; own A2A on a2a-protocol-types 0.12.1) | `//hosts/rust:host` | ADK |
 | `a2a-python` | a2a-sdk 1.2.2 | `//hosts/a2a-python:host` | control for `python` |
 | `a2a-go` | a2a-go v2.6.0 | `//hosts/a2a-go:host` | control for `go` |
