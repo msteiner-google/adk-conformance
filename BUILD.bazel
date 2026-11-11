@@ -1,7 +1,10 @@
 # adk-monitor root package.
 load("@rules_python//python:py_test.bzl", "py_test")
 
-exports_files(["known_divergences.yaml"])
+exports_files([
+    ".bazelignore",
+    "known_divergences.yaml",
+])
 
 SCENARIO_GROUPS = [
     "//scenarios/a2a_cli:all_scenarios",

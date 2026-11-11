@@ -26,7 +26,7 @@ import re
 import sys
 from typing import Any
 
-from harness import a2a_view, normalize
+from harness import a2a_view, normalize, subjects
 
 STATUS_MARK = {
     "pass": "✅", "fail": "❌", "xfail": "⚠️", "xpass": "❔", "error": "💥", "unsupported": "🚫",
@@ -50,6 +50,8 @@ def load_transcripts(root: str) -> dict[str, dict[str, dict[str, Any]]]:
         continue
       with open(os.path.join(dirpath, name), encoding="utf-8") as f:
         transcript = json.load(f)
+      if subjects.involves_paused(transcript):
+        continue  # left in bazel-testlogs by a run from before the pause
       out[transcript["scenario"]][transcript["subject"]] = transcript
   return dict(out)
 
@@ -523,6 +525,12 @@ def _compare_clients(scenario: str, pairs: dict[str, dict[str, Any]]) -> list[di
   return findings
 
 
+def _ran(t: dict[str, Any]) -> bool:
+  """False for a run skipped as a capability gap (UNSUPPORTED, no host started):
+  it has no behavior to compare, so it does not vote in the differential."""
+  return t.get("ran", True)
+
+
 def _status(t: dict[str, Any] | None) -> str:
   if not t:
     return "missing"
@@ -566,7 +574,7 @@ def build_report(transcripts: dict[str, dict[str, dict[str, Any]]],
             "server_kind": topo.get("server_kind")}
       interop[scenario] = {"area": any_t.get("area", ""), "behaviors": any_t.get("behaviors", []),
                            "clients": clients, "servers": servers, "cells": cells}
-      findings.extend(_compare_clients(scenario, pairs))
+      findings.extend(_compare_clients(scenario, {s: t for s, t in pairs.items() if _ran(t)}))
       continue
     ni = not_implemented_steps({s: t for s, t in per.items() if s in subjects})
     row = {}
@@ -585,7 +593,8 @@ def build_report(transcripts: dict[str, dict[str, dict[str, Any]]],
       }
     matrix[scenario] = {"area": any_t.get("area", ""), "behaviors": any_t.get("behaviors", []),
                         "subjects": row}
-    findings.extend(_compare_scenario(scenario, {s: t for s, t in per.items() if roles[s] == "adk"}))
+    findings.extend(_compare_scenario(
+        scenario, {s: t for s, t in per.items() if roles[s] == "adk" and _ran(t)}))
   return {
       "meta": meta or {},
       "subjects": subjects,

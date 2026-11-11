@@ -84,3 +84,49 @@ crate.annotation(
     repositories = ["crates_a2a_rs"],
 )
 use_repo(crate, "crates", "crates_a2a_rs")
+
+# --- JVM: Java ADK host (adk-java) + Kotlin ADK host (adk-kotlin) ---------------
+bazel_dep(name = "rules_java", version = "9.9.0")
+bazel_dep(name = "rules_jvm_external", version = "7.2")
+bazel_dep(name = "rules_kotlin", version = "2.4.21")
+
+maven = use_extension("@rules_jvm_external//:extensions.bzl", "maven")
+
+# One resolution per host: adk-kotlin (Ktor) and adk-java (Spring Boot) pull in
+# different versions of the same libraries (Jackson, OpenTelemetry, slf4j).
+# Each has a lock file next to its host. After changing an artifact list:
+#   REPIN=1 bazel run @maven_java//:pin      (or @maven_kotlin//:pin)
+maven.install(
+    name = "maven_kotlin",
+    artifacts = [
+        "com.google.adk:google-adk-kotlin-a2a-jvm:1.5.0",
+        "com.google.adk:google-adk-kotlin-core-jvm:1.5.0",
+        "com.google.adk:google-adk-kotlin-webserver:1.5.0",
+        "com.google.genai:google-genai-kotlin-jvm:1.7.0",
+        "org.a2aproject.sdk:a2a-java-sdk-spec:1.3.2.Final",
+        "org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.11.0",
+    ],
+    fetch_sources = False,
+    lock_file = "//hosts/kotlin:maven_install.json",
+    repositories = ["https://repo1.maven.org/maven2"],
+)
+
+maven.install(
+    name = "maven_java",
+    artifacts = [
+        "com.google.adk:google-adk:1.14.0",
+        "com.google.adk:google-adk-a2a:1.14.0",
+        "com.google.adk:google-adk-dev:1.14.0",
+        "com.google.genai:google-genai:1.77.0",
+        "io.github.a2asdk:a2a-java-sdk-client:0.3.2.Final",
+        "io.github.a2asdk:a2a-java-sdk-client-transport-jsonrpc:0.3.2.Final",
+        "io.github.a2asdk:a2a-java-sdk-http-client:0.3.2.Final",
+        "io.github.a2asdk:a2a-java-sdk-spec:0.3.2.Final",
+    ],
+    fetch_sources = False,
+    lock_file = "//hosts/java:maven_install.json",
+    repositories = ["https://repo1.maven.org/maven2"],
+)
+use_repo(maven, "maven_java", "maven_kotlin")
+
+register_toolchains("//hosts/kotlin:kt_toolchain")

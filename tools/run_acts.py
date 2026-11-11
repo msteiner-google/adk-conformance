@@ -35,6 +35,8 @@ import urllib.request
 from typing import Any
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, ROOT)
+from harness import subjects  # pylint: disable=wrong-import-position
 CACHE = os.path.expanduser("~/.cache/adk-monitor/acts")
 A2A_ITK_REPO = "https://github.com/a2aproject/a2a-itk"
 A2A_ITK_REF = "065fbb86ce0c367012d81353937e8123b24f9f40"  # main on 2026-10-15
@@ -226,7 +228,7 @@ def main(argv: list[str] | None = None) -> int:
       previous = json.load(f).get("sdks", {})
   result: dict[str, Any] = {"a2a_itk": {"repo": A2A_ITK_REPO, "ref": args.itk_ref},
                             "sdks": previous}
-  for sdk in args.sdk or sorted(SDKS):
+  for sdk in args.sdk or subjects.active(sorted(SDKS)):
     version = pinned(sdk)
     entry: dict[str, Any] = {"subject": SDKS[sdk]["subject"],
                              "pinned": run_one(sdk, version, out_dir, args.transport or ["all"], itk_dir)}

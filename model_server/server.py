@@ -241,7 +241,8 @@ class ScriptedModelServer:
     return self.base_url
 
   def stop(self) -> None:
-    self._httpd.shutdown()
+    if self._thread:  # shutdown() waits for serve_forever, so only after start()
+      self._httpd.shutdown()
     self._httpd.server_close()
 
   def recorded_requests(self) -> list[dict[str, Any]]:

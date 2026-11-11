@@ -1,0 +1,2 @@
+# Read by //harness:subjects_test (paused subjects stay in sync).
+exports_files(["subjects.bzl"])

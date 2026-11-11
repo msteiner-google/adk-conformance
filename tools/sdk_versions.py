@@ -14,6 +14,8 @@ import re
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, ROOT)
+from harness import subjects  # pylint: disable=wrong-import-position
 
 
 def _read(rel: str) -> str:
@@ -62,9 +64,32 @@ def a2a_rs_versions() -> dict[str, str]:
   return out
 
 
+def _maven_versions(lock_rel: str, prefixes: tuple[str, ...]) -> dict[str, str]:
+  """group:artifact -> version from a rules_jvm_external lock file."""
+  text = _read(lock_rel)
+  artifacts = json.loads(text).get("artifacts", {}) if text else {}
+  return {name: info["version"] for name, info in sorted(artifacts.items())
+          if name in prefixes and "version" in info}
+
+
+def java_versions() -> dict[str, str]:
+  return _maven_versions("hosts/java/maven_install.json", (
+      "com.google.adk:google-adk", "com.google.adk:google-adk-dev", "com.google.adk:google-adk-a2a",
+      "com.google.genai:google-genai", "io.github.a2asdk:a2a-java-sdk-spec"))
+
+
+def kotlin_versions() -> dict[str, str]:
+  return _maven_versions("hosts/kotlin/maven_install.json", (
+      "com.google.adk:google-adk-kotlin-core-jvm", "com.google.adk:google-adk-kotlin-webserver",
+      "com.google.adk:google-adk-kotlin-a2a-jvm", "com.google.genai:google-genai-kotlin-jvm",
+      "org.a2aproject.sdk:a2a-java-sdk-spec"))
+
+
 def versions() -> dict[str, dict[str, str]]:
-  return {"python": python_versions(), "go": go_versions(), "rust": rust_versions(),
-          "a2a-rs": a2a_rs_versions()}
+  """Versions of every active subject (paused ones: harness/subjects.py)."""
+  readers = {"python": python_versions, "go": go_versions, "java": java_versions,
+             "kotlin": kotlin_versions, "rust": rust_versions, "a2a-rs": a2a_rs_versions}
+  return {name: readers[name]() for name in subjects.active(readers)}
 
 
 if __name__ == "__main__":

@@ -11,7 +11,7 @@ way, the A2A SDK is.
 |---|---|---|---|---|
 | `a2a-python` | `//hosts/a2a-python:host` | a2a-sdk (a2aproject/a2a-python) | `third_party/python/requirements_lock.txt` (the version google-adk resolves) | control for `python` |
 | `a2a-go` | `//hosts/a2a-go:host` | a2a-go v2 (a2aproject/a2a-go) | root `go.mod` (the version adk-go resolves) | control for `go` |
-| `a2a-rs` | `//hosts/a2a-rs:host` | a2a-lf (a2aproject/a2a-rs) | `hosts/a2a-rs/Cargo.lock` | **reference** for `rust` (adk-rust implements A2A itself on a2a-protocol-types, so there is no same-SDK control) |
+| `a2a-rs` (paused) | `//hosts/a2a-rs:host` | a2a-lf (a2aproject/a2a-rs) | `hosts/a2a-rs/Cargo.lock` | **reference** for `rust` (adk-rust implements A2A itself on a2a-protocol-types, so there is no same-SDK control) |
 
 The executor is deliberately trivial, so a failure on a bare host is a
 finding about the SDK, never about the executor. Change all three hosts in

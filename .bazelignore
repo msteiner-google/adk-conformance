@@ -2,3 +2,5 @@ hosts/rust/target
 .venv
 out
 hosts/a2a-rs/target
+hosts/rust
+hosts/a2a-rs

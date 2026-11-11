@@ -15,8 +15,10 @@
 # Triage notes: every entry below was confirmed from the raw transcript of a
 # local run on 2026-10-15 (google-adk 2.12.0, adk-go v2.6.0, adk-rust 2.3.0),
 # A2A entries on 2026-10-16 (a2a-sdk 1.2.2, a2a-go v2.6.0, adk-server 2.3.0
-# with a2a-v1, a2a-server-lf 0.5.2). Subjects "a2a-<lang>" are bare A2A hosts;
-# "<client>-to-<server>" are client pairs.
+# with a2a-v1, a2a-server-lf 0.5.2), java and kotlin entries on 2026-11-06
+# (adk-java 1.14.0, adk-kotlin 1.5.0). Subjects "a2a-<lang>" are bare A2A
+# hosts; "<client>-to-<server>" are client pairs. The rust and a2a-rs entries
+# stay while those subjects are paused (README.md, "Paused subjects").
 divergences:
   # --- adk-go -------------------------------------------------------------------
   - scenario: api_session_create_with_id_001
@@ -31,6 +33,43 @@ divergences:
     reason: adk-go REST events carry no timestamp field.
     issue: https://github.com/google/adk-go/issues/1868
     expires: "2027-01-15"
+
+  # --- adk-java (1.14.0, confirmed 2026-11-06) ------------------------------------
+  - scenario: api_session_create_with_id_001
+    subject: java
+    checks: ["create session with id :: body.id"]
+    reason: adk-java ignores sessionId in the body of POST .../sessions (its SessionRequest only carries state) and generates its own id; a client-chosen id needs POST .../sessions/{id}.
+    expires: "2027-02-06"
+  - scenario: api_sse_framing_001
+    subject: java
+    checks: ["run sse :: sse_framing"]
+    reason: adk-java (Spring SseEmitter) frames /run_sse events as "data:<json>", without the space after the colon that Python, Go and Kotlin send (both are valid SSE).
+    expires: "2027-02-06"
+  - scenario: tool_unknown_001
+    subject: java
+    checks: ["unknown tool turn :: error"]
+    reason: adk-java drops a call to an unknown tool (logs "Tool not found", sends no function response) and re-prompts the model with a "Continue processing previous requests..." user turn; the script has no reply for it, genai-java retries the 500 four times, and the failed run cuts the /run_sse response off mid-stream with no error event.
+    issue: http://b/582741281
+    expires: "2027-02-06"
+  - scenario: agt_transfer_unknown_001
+    subject: java
+    checks: ["bad transfer :: error"]
+    reason: 'transfer_to_agent to an unknown agent fails the run (IllegalStateException "Agent not found: nobody") and adk-java cuts the /run_sse response off mid-stream (incomplete chunked body, no error event).'
+    issue: http://b/582740078
+    expires: "2027-02-06"
+
+  # --- adk-kotlin (1.5.0, confirmed 2026-11-06) -----------------------------------
+  - scenario: api_run_unknown_session_001
+    subject: kotlin
+    checks: ["run unknown session :: status", "llm :: request_count"]
+    reason: 'adk-kotlin runs the agent (HTTP 200, one LLM call) for a session id that was never created; its runner creates the missing session (AbstractRunner getSession ?: createSession).'
+    issue: http://b/582740554
+    expires: "2027-02-06"
+  - scenario: evt_event_fields_001
+    subject: kotlin
+    checks: ["one turn :: final.actions"]
+    reason: adk-kotlin omits default-valued fields from REST events (kotlinx.serialization encodeDefaults=false), so an event with empty actions has no "actions" key.
+    expires: "2027-02-06"
 
   # --- adk-rust (community) -------------------------------------------------------
   - scenario: api_health_version_001
