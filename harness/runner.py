@@ -47,6 +47,10 @@ class Subject:
   host_cmd: list[str]
   base_path: str = ""
   kind: str = "adk"
+  # False when the SDK cannot serve an agent over A2A v1 (a2a_server) or call
+  # one (a2a_client): scenarios that need it report UNSUPPORTED.
+  a2a_server: bool = True
+  a2a_client: bool = True
 
 
 class Unsupported(LookupError):
@@ -682,6 +686,16 @@ class ScenarioRun:
         "all_reachable": all(v.get("reachable") for v in out.values() if v.get("probed")),
     }
 
+  def missing_capability(self) -> str:
+    """Why this topology cannot run on these subjects, or "" when it can."""
+    if self.a2a_app and not self.subject.a2a_server:
+      return f"{self.subject.name} cannot serve an agent over A2A"
+    if self.server and not self.subject.a2a_client:
+      return f"{self.subject.name} cannot call an A2A agent"
+    if self.server and not self.server.a2a_server:
+      return f"{self.server.name} cannot serve an agent over A2A"
+    return ""
+
   # Results -------------------------------------------------------------------------
 
   def llm_view(self) -> dict[str, Any]:
@@ -788,16 +802,23 @@ def run(scenario_path: str, subject: Subject, out_dir: str,
   run_ = ScenarioRun(scenario, subject, workdir, server=server)
   error = ""
   llm_checks: list[Check] = []
-  try:
-    run_.start()
-    run_.run_steps()
-    llm_checks = evaluate(scenario.get("expect_llm"), run_.llm_view())
-  except Exception as e:  # pylint: disable=broad-except
-    error = f"{type(e).__name__}: {e}"
-  finally:
-    run_.stop()
+  missing = run_.missing_capability()
+  if missing:
+    # Capability matrix: record the gap without starting any process.
+    run_.steps.append(StepRecord(name="a2a", kind="capability", error=f"unsupported: {missing}"))
+    run_.model.stop()
+  else:
+    try:
+      run_.start()
+      run_.run_steps()
+      llm_checks = evaluate(scenario.get("expect_llm"), run_.llm_view())
+    except Exception as e:  # pylint: disable=broad-except
+      error = f"{type(e).__name__}: {e}"
+    finally:
+      run_.stop()
   known = load_known_divergences(known_divergences, scenario["id"], run_.subject_id)
   transcript = run_.transcript(llm_checks, error, known)
+  transcript["ran"] = not missing  # False: a capability gap, nothing was started
   name = f"{scenario['id']}.{run_.subject_id}"
   with open(os.path.join(out_dir, f"{name}.transcript.json"), "w", encoding="utf-8") as f:
     json.dump(transcript, f, indent=2, sort_keys=True)
@@ -845,15 +866,23 @@ def main(argv: list[str] | None = None) -> int:
   parser.add_argument("--server-subject", default=None, help="client scenarios: server subject")
   parser.add_argument("--server-host", default=None, help="client scenarios: server host executable")
   parser.add_argument("--server-kind", default="adk", choices=["adk", "bare"])
+  parser.add_argument("--no-a2a-server", action="store_true",
+                      help="the subject cannot serve an agent over A2A")
+  parser.add_argument("--no-a2a-client", action="store_true",
+                      help="the subject cannot call an A2A agent")
+  parser.add_argument("--server-no-a2a-server", action="store_true",
+                      help="client scenarios: the server subject cannot serve an agent over A2A")
   parser.add_argument("--known-divergences", default=None, help="known_divergences.yaml")
   parser.add_argument("--out", default=os.environ.get("TEST_UNDECLARED_OUTPUTS_DIR", "/tmp/adk-monitor-out"))
   args = parser.parse_args(argv)
-  subject = Subject(args.subject, [os.path.abspath(args.host)], args.base_path, args.kind)
+  subject = Subject(args.subject, [os.path.abspath(args.host)], args.base_path, args.kind,
+                    a2a_server=not args.no_a2a_server, a2a_client=not args.no_a2a_client)
   server = None
   if args.server_subject:
     if not args.server_host:
       parser.error("--server-subject needs --server-host")
-    server = Subject(args.server_subject, [os.path.abspath(args.server_host)], "", args.server_kind)
+    server = Subject(args.server_subject, [os.path.abspath(args.server_host)], "", args.server_kind,
+                     a2a_server=not args.server_no_a2a_server)
   transcript = run(args.scenario, subject, args.out, args.known_divergences, server=server)
   print(summarize(transcript))
   return 0 if transcript["passed"] else 1

@@ -1,0 +1,29 @@
+load("@rules_kotlin//kotlin:core.bzl", "define_kt_toolchain")
+load("@rules_kotlin//kotlin:jvm.bzl", "kt_jvm_binary")
+
+# Maven lock file (maven.install lock_file in MODULE.bazel).
+exports_files(["maven_install.json"])
+
+# Kotlin ADK host (google/adk-kotlin): serves every fixture in
+# fixtures/FIXTURES.md through adk-kotlin's own REST API (AdkApiServer, base
+# path ""). Dependencies: maven.install(name = "maven_kotlin") in MODULE.bazel.
+kt_jvm_binary(
+    name = "host",
+    srcs = ["Host.kt"],
+    main_class = "adkmonitor.kotlin.HostKt",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@maven_kotlin//:com_google_adk_google_adk_kotlin_a2a_jvm",
+        "@maven_kotlin//:com_google_adk_google_adk_kotlin_core_jvm",
+        "@maven_kotlin//:com_google_adk_google_adk_kotlin_webserver",
+        "@maven_kotlin//:com_google_genai_google_genai_kotlin_jvm",
+        "@maven_kotlin//:org_a2aproject_sdk_a2a_java_sdk_spec",
+        "@maven_kotlin//:org_jetbrains_kotlinx_kotlinx_coroutines_core_jvm",
+    ],
+)
+
+# adk-kotlin targets JVM 17; compile the host for the same target.
+define_kt_toolchain(
+    name = "kt_toolchain",
+    jvm_target = "17",
+)

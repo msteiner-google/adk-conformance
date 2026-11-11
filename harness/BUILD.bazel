@@ -15,6 +15,7 @@ py_library(
         "paths.py",
         "proxy.py",
         "runner.py",
+        "subjects.py",
     ],
     visibility = ["//visibility:public"],
     deps = [
@@ -70,5 +71,22 @@ py_test(
     name = "a2a_view_test",
     size = "small",
     srcs = ["a2a_view_test.py"],
+    deps = [":harness"],
+)
+
+# harness/subjects.py, tools/bazel/subjects.bzl and .bazelignore agree on the
+# paused subjects.
+py_test(
+    name = "subjects_test",
+    size = "small",
+    srcs = ["subjects_test.py"],
+    args = [
+        "$(rootpath //tools/bazel:subjects.bzl)",
+        "$(rootpath //:.bazelignore)",
+    ],
+    data = [
+        "//:.bazelignore",
+        "//tools/bazel:subjects.bzl",
+    ],
     deps = [":harness"],
 )

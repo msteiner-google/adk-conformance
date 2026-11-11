@@ -22,6 +22,8 @@ import sys
 import urllib.request
 from typing import Any
 
+from harness import subjects
+
 BASE = "https://github.com/a2aproject/{repo}/releases/download/nightly-metrics/{asset}"
 # ADK subject -> (A2A SDK repo, asset suffix, same SDK as the ADK uses?)
 SDKS = {
@@ -73,7 +75,8 @@ def summarize_itk(night: dict[str, Any]) -> dict[str, Any]:
 
 def collect(fetch=_fetch) -> dict[str, Any]:
   out: dict[str, Any] = {}
-  for subject, (repo, suffix, same_sdk) in SDKS.items():
+  for subject in subjects.active(SDKS):
+    repo, suffix, same_sdk = SDKS[subject]
     entry: dict[str, Any] = {"sdk": repo, "same_sdk_as_adk": same_sdk}
     for kind in ("acts", "itk"):
       url = BASE.format(repo=repo, asset=f"{kind}_{suffix}.json")

@@ -13,28 +13,36 @@ Design doc: <https://docs.google.com/document/d/17Az5DdRkVcSm5RWNCr43ZdadbuPJA_W
 |---|---|---|---|
 | `python` | google-adk 2.13.0 (a2a-sdk 1.2.2) | `//hosts/python:host` | ADK |
 | `go` | google.golang.org/adk/v2 v2.7.1 (a2a-go v2.6.0) | `//hosts/go:host` | ADK |
-| `rust` | adk-rust 2.3.0 (community; own A2A on a2a-protocol-types 0.12.1) | `//hosts/rust:host` | ADK |
+| `java` | adk-java 1.14.0 (A2A 0.3 only: no A2A v1 server or client) | `//hosts/java:host` | ADK, REST API only |
+| `kotlin` | adk-kotlin 1.5.0 (A2A v1 client on a2a-java 1.3.2, no A2A server) | `//hosts/kotlin:host` | ADK, A2A client |
 | `a2a-python` | a2a-sdk 1.2.2 | `//hosts/a2a-python:host` | control for `python` |
 | `a2a-go` | a2a-go v2.6.0 | `//hosts/a2a-go:host` | control for `go` |
-| `a2a-rs` | official a2aproject/a2a-rs | `//hosts/a2a-rs:host` | reference for `rust` |
 
-- 71 scenarios, 300 conformance tests:
-  - 50 ADK scenarios (smoke, API, EVT, LLM, TOOL, AGT) × 3 ADK subjects = 150;
-  - 16 A2A server scenarios × 6 subjects (3 ADK + 3 bare) = 96;
-  - 4 A2A client scenarios × 3 clients × 3 ADK servers = 36;
-  - 1 interop scenario × 3 clients × 6 servers = 18.
+Paused (hosts kept, not built or run; see [Paused subjects](#paused-subjects)):
+`rust` (adk-rust 2.3.0, community) and its reference host `a2a-rs`.
+
+- 71 scenarios, 384 conformance tests:
+  - 50 ADK scenarios (smoke, API, EVT, LLM, TOOL, AGT) × 4 ADK subjects = 200;
+  - 16 A2A server scenarios × 6 subjects (4 ADK + 2 bare) = 96;
+  - 4 A2A client scenarios × 4 clients × 4 ADK servers = 64;
+  - 1 interop scenario × 4 clients × 6 servers = 24.
+- A2A tests that need a side an SDK lacks (an A2A v1 server for java and
+  kotlin, an A2A v1 client for java) report UNSUPPORTED without starting a
+  host: 84 of the 184 A2A tests.
 - Every ADK host serves the 10 fixtures in [`fixtures/FIXTURES.md`](fixtures/FIXTURES.md),
   and one of them over A2A v1 on request. Bare A2A hosts (an A2A SDK with a
   fixed executor, no ADK) follow [`hosts/BARE_HOSTS.md`](hosts/BARE_HOSTS.md).
-- 41 confirmed SDK differences (16 ADK, 25 A2A) are recorded in
-  [`known_divergences.yaml`](known_divergences.yaml) (they report XFAIL); the
-  comparison report lists every other divergence.
+- 47 confirmed SDK differences are recorded in
+  [`known_divergences.yaml`](known_divergences.yaml) (they report XFAIL): 15
+  for the active subjects (8 ADK, 7 A2A) and 32 for the paused rust subjects.
+  The comparison report lists every other divergence.
 - Every A2A finding is attributed to the ADK SDK, the A2A SDK, a stale pin or
   the spec ([Attribution](#attribution)); ACTS runs through a2a-itk on request.
 - Run everything locally with `tools/run_pipeline.sh` and read
   `out/report/report.md` (see [Running the pipeline](#running-the-pipeline)).
 
-Java and TypeScript join in M5, once their ADKs speak A2A v1.
+java and kotlin joined the ADK scenarios ahead of M5; their A2A scenarios run
+once their ADKs serve (and, for java, call) A2A v1. TypeScript joins in M5.
 
 ## Quick start
 
@@ -84,9 +92,11 @@ format differences separately.
 | `tools/bazel/` | `conformance_suite()` macro and the subject table (`subjects.bzl`). |
 | `third_party/python/` | Python dependency lock (`requirements_lock.txt`). |
 
-Go dependencies live in the root `go.mod`. Rust dependencies live in
-`hosts/rust/Cargo.toml` and `Cargo.lock` (and `hosts/a2a-rs/` for the
-reference host).
+Go dependencies live in the root `go.mod`. Java and Kotlin dependencies are
+the `maven_java` and `maven_kotlin` `maven.install` lists in `MODULE.bazel`,
+locked in `hosts/java/maven_install.json` and `hosts/kotlin/maven_install.json`.
+Rust dependencies (paused) live in `hosts/rust/Cargo.toml` and `Cargo.lock`
+(and `hosts/a2a-rs/` for the reference host).
 
 ## Host contract
 
@@ -206,8 +216,8 @@ tools/run_pipeline.sh --acts     # also run ACTS through a2a-itk (slow)
 tools/run_pipeline.sh --offline  # no network after the tests
 ```
 
-A cold run takes about 15 minutes (mostly compiling the Rust host); later
-runs only rebuild what changed. Output, in `out/` (or `--out DIR`):
+A cold run takes about 15 minutes (mostly fetching and compiling the JVM
+hosts' Maven dependencies); later runs only rebuild what changed. Output, in `out/` (or `--out DIR`):
 
 | File | Contents |
 |---|---|
@@ -288,6 +298,29 @@ uv pip compile third_party/python/requirements.in --generate-hashes \
   -o third_party/python/requirements_lock.txt
 # Go
 go mod tidy && bazel mod tidy && bazel run //:gazelle
-# Rust
+# Java / Kotlin: edit the maven.install list in MODULE.bazel, then
+REPIN=1 bazel run @maven_java//:pin     # or @maven_kotlin//:pin
+# Rust (paused)
 cargo update --manifest-path hosts/rust/Cargo.toml   # then rebuild
 ```
+
+## Paused subjects
+
+A paused subject keeps its host and its `known_divergences.yaml` entries, but
+nothing builds, runs, bumps or attributes it. Currently paused: `rust` and
+`a2a-rs` (since 2026-11-06).
+
+Three places hold the pause; `//harness:subjects_test` checks they agree:
+
+1. `tools/bazel/subjects.bzl`: the entries sit in `PAUSED_SUBJECTS`, not in
+   `SUBJECTS` / `CONTROL_SUBJECTS`, so no tests are generated.
+2. `.bazelignore`: the host packages (`hosts/rust`, `hosts/a2a-rs`) are
+   listed, so `bazel test //...` does not load or compile them.
+3. `harness/subjects.py`: `PAUSED` makes `sdk_versions.py`, `bump_sdks.py`,
+   `attribution/latest.py`, `attribution/external.py` and `run_acts.py` skip
+   them, and keeps them out of the attribution engine's "every SDK fails"
+   (spec) check.
+
+To resume, move the entries back, drop the two lines from `.bazelignore`, and
+empty `PAUSED`. Re-check the rust entries in `known_divergences.yaml` on the
+first run: they may have expired.

@@ -115,6 +115,8 @@ card's interfaces say where JSON-RPC (and HTTP+JSON, if any) live.
 |---|---|---|---|
 | python | `google.adk.a2a.utils.agent_to_a2a.to_a2a` | `/` | — |
 | go | `cmd/launcher/web/a2a` (adk-go's A2A web sublauncher) | `/a2a/v1/invoke` | — |
-| rust | adk-server `a2a::v1` components (see hosts/rust) | `/` | `/rest` |
+| java | none: adk-java 1.14.0 speaks A2A 0.3 only (the subject reports UNSUPPORTED) | — | — |
+| kotlin | none: adk-kotlin 1.5.0 has only an A2A client (the subject reports UNSUPPORTED) | — | — |
+| rust (paused) | adk-server `a2a::v1` components (see hosts/rust) | `/` | `/rest` |
 
 Bare A2A hosts (no ADK) are specified in [hosts/BARE_HOSTS.md](../hosts/BARE_HOSTS.md).

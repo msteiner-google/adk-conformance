@@ -1,0 +1,31 @@
+load("@rules_java//java:java_binary.bzl", "java_binary")
+
+# Maven lock file (maven.install lock_file in MODULE.bazel).
+exports_files(["maven_install.json"])
+
+# Java ADK host (google/adk-java): serves every fixture in fixtures/FIXTURES.md
+# through adk-java's own REST API (google-adk-dev AdkWebServer, Spring Boot,
+# base path ""). Dependencies: maven.install(name = "maven_java") in MODULE.bazel.
+#
+# Run it from runfiles (bazel run, test data), not as a _deploy.jar: Spring Boot
+# finds auto-configuration in META-INF/spring/*.imports of many jars, and a
+# merged jar keeps only one of them.
+java_binary(
+    name = "host",
+    srcs = [
+        "Host.java",
+        "Tools.java",
+    ],
+    main_class = "adkmonitor.Host",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@maven_java//:com_google_adk_google_adk",
+        "@maven_java//:com_google_adk_google_adk_a2a",
+        "@maven_java//:com_google_adk_google_adk_dev",
+        "@maven_java//:com_google_genai_google_genai",
+        "@maven_java//:io_github_a2asdk_a2a_java_sdk_client",
+        "@maven_java//:io_github_a2asdk_a2a_java_sdk_client_transport_jsonrpc",
+        "@maven_java//:io_github_a2asdk_a2a_java_sdk_http_client",
+        "@maven_java//:io_github_a2asdk_a2a_java_sdk_spec",
+    ],
+)

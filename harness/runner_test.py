@@ -126,3 +126,27 @@ class NormalizeTest(unittest.TestCase):
 
 if __name__ == "__main__":
   unittest.main()
+
+
+class CapabilityTest(unittest.TestCase):
+  """Subjects without an A2A side report UNSUPPORTED without starting any host."""
+
+  def _run(self, scenario: str, subject: runner.Subject, server: runner.Subject | None = None):
+    import os  # pylint: disable=import-outside-toplevel
+    import tempfile  # pylint: disable=import-outside-toplevel
+    tmp = tempfile.mkdtemp(dir=os.environ.get("TEST_TMPDIR"))
+    path = os.path.join(tmp, "s.yaml")
+    with open(path, "w", encoding="utf-8") as f:
+      f.write(scenario)
+    return runner.run(path, subject, os.path.join(tmp, "out"), server=server)
+
+  def test_missing_a2a_server_and_client(self):
+    missing = ["/nonexistent/host"]  # starting it would fail the run with an error
+    srv = "id: s\nbehaviors: [X]\na2a: {app: hello_agent}\nsteps:\n  - a2a.get_card: {}\n"
+    t = self._run(srv, runner.Subject("k", missing, a2a_server=False))
+    self.assertEqual((t["status"], t["failures"], t["ran"]), ("unsupported", ["a2a :: unsupported"], False))
+    cli = "id: s\nbehaviors: [X]\nremote: {app: hello_agent}\nsteps:\n  - adk.list_apps: {}\n"
+    t = self._run(cli, runner.Subject("j", missing, a2a_client=False), runner.Subject("go", missing))
+    self.assertEqual(t["status"], "unsupported")
+    t = self._run(cli, runner.Subject("go", missing), runner.Subject("k", missing, a2a_server=False))
+    self.assertEqual((t["status"], t["subject"]), ("unsupported", "go-to-k"))

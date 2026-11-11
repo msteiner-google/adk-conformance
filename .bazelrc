@@ -17,3 +17,10 @@ test --test_summary=terse
 # test:live --test_env=GOOGLE_API_KEY
 
 try-import %workspace%/user.bazelrc
+
+# JVM hosts: hermetic JDK 21 to build and run. The tool runtime must be >= 21
+# for kotlinc to read a2a-java's records.
+common --java_runtime_version=remotejdk_21
+common --tool_java_runtime_version=remotejdk_21
+common --java_language_version=17
+common --tool_java_language_version=17

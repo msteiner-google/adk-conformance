@@ -19,6 +19,14 @@ def _lint(name, scenarios):
         deps = ["//harness"],
     )
 
+def _a2a_server(info):
+    """Whether the subject can serve an agent over A2A v1 (subjects.bzl `a2a_server`)."""
+    return getattr(info, "a2a_server", True)
+
+def _a2a_client(info):
+    """Whether the subject can call an A2A v1 agent (subjects.bzl `a2a_client`)."""
+    return getattr(info, "a2a_client", True)
+
 def _base(scenario):
     return scenario.split("/")[-1].removesuffix(".yaml").removesuffix(".yml")
 
@@ -55,7 +63,7 @@ def conformance_suite(name, scenarios, subjects = None, size = "medium", tags = 
                     "--base-path=%s" % info.base_path,
                     "--kind=%s" % info.kind,
                     "--known-divergences=$(rootpath //:known_divergences.yaml)",
-                ],
+                ] + ([] if _a2a_server(info) else ["--no-a2a-server"]),
                 data = [scenario, info.host, "//:known_divergences.yaml"],
                 deps = ["//harness"],
                 size = size,
@@ -104,7 +112,8 @@ def a2a_client_suite(name, scenarios, clients = None, servers = None, size = "me
                         "--server-host=$(rootpath %s)" % sinfo.host,
                         "--server-kind=%s" % sinfo.kind,
                         "--known-divergences=$(rootpath //:known_divergences.yaml)",
-                    ],
+                    ] + ([] if _a2a_client(cinfo) else ["--no-a2a-client"]) +
+                    ([] if _a2a_server(sinfo) else ["--server-no-a2a-server"]),
                     data = [scenario, cinfo.host, "//:known_divergences.yaml"] +
                            ([] if sinfo.host == cinfo.host else [sinfo.host]),
                     deps = ["//harness"],

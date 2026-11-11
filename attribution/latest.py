@@ -33,6 +33,8 @@ import sys
 import urllib.request
 from typing import Any
 
+from harness import subjects
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SCRATCH = os.path.expanduser("~/.cache/adk-monitor/latest-a2a")
 SCENARIO_PACKAGES = ["//scenarios/a2a_srv/..."]
@@ -68,6 +70,8 @@ def latest_versions() -> dict[str, str | None]:
       ("go", lambda: _get_json("https://proxy.golang.org/github.com/a2aproject/a2a-go/v2/@latest")["Version"]),
       ("rust", lambda: _get_json("https://crates.io/api/v1/crates/a2a-protocol-types")["crate"]["max_stable_version"]),
   ):
+    if lang in subjects.PAUSED:
+      continue
     try:
       out[lang] = fetch()
     except Exception as e:  # pylint: disable=broad-except
@@ -173,7 +177,8 @@ def main(argv: list[str] | None = None) -> int:
     latest[lang] = version
   sdks: dict[str, Any] = {}
   to_swap = []
-  for lang, (sdk, bare) in SDKS.items():
+  for lang in subjects.active(SDKS):
+    sdk, bare = SDKS[lang]
     info: dict[str, Any] = {"sdk": sdk, "bare": bare, "pinned": pinned.get(lang),
                             "latest": latest.get(lang), "swapped": False}
     if not info["pinned"] or not info["latest"]:

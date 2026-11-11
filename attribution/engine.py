@@ -39,7 +39,7 @@ import sys
 from typing import Any
 
 from attribution import external as external_signal
-from harness import compare
+from harness import compare, subjects
 
 A2A_AREAS = ("a2a-srv", "a2a-cli")
 CONTROLS = {
@@ -48,7 +48,8 @@ CONTROLS = {
     "go": ("a2a-go", "a2a-go", True),
     "rust": ("a2a-rs", "a2a-rs (reference)", False),
 }
-ADK_REPOS = {"python": "google/adk-python", "go": "google/adk-go", "rust": "zavora-ai/adk-rust"}
+ADK_REPOS = {"python": "google/adk-python", "go": "google/adk-go", "rust": "zavora-ai/adk-rust",
+             "java": "google/adk-java", "kotlin": "google/adk-kotlin"}
 A2A_REPOS = {"python": "a2aproject/a2a-python", "go": "a2aproject/a2a-go",
              "rust": "a2aproject/a2a-rs"}
 BAD = ("fail", "xfail", "error")
@@ -160,7 +161,8 @@ def attribute_failure(ev: Evidence, scenario: str, subject: str,
   adk = _outcome(transcript, failures)
   bare_latest, adk_latest, note = _version_experiments(ev, scenario, subject, control, failures,
                                                        bare, adk)
-  others = {s: _outcome(ev.get(scenario, s), failures) for s in CONTROLS if s != subject}
+  others = {s: _outcome(ev.get(scenario, s), failures)
+            for s in subjects.active(CONTROLS) if s != subject}
   assumed = bare_latest == "n/a" and adk_latest == "n/a"
   if assumed:
     # No latest-release evidence: decide on the pinned results alone, as if

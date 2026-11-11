@@ -5,8 +5,11 @@ Rewrites the pins and re-resolves the lock files in place:
 * Python: google-adk pin in third_party/python/requirements.in, then
   `uv pip compile` for requirements_lock.txt.
 * Go: `go get google.golang.org/adk/v2@latest` and `go mod tidy`.
-* Rust: the `=X.Y.Z` pins of adk-* crates in hosts/rust/Cargo.toml, then
-  `cargo update` for Cargo.lock.
+* Java / Kotlin: the com.google.adk artifact versions of maven_java /
+  maven_kotlin in MODULE.bazel, then `REPIN=1 bazel run @maven_<x>//:pin` for
+  the host's maven_install.json.
+* Rust (paused): the `=X.Y.Z` pins of adk-* crates in hosts/rust/Cargo.toml,
+  then `cargo update` for Cargo.lock.
 
 Major-version jumps (for example adk-go v3) are not taken automatically,
 since they change import paths. Prints a JSON summary of old and new
@@ -37,9 +40,9 @@ def _get_json(url: str) -> dict:
     return json.load(resp)
 
 
-def _run(cmd: list[str], cwd: str = ROOT) -> None:
+def _run(cmd: list[str], cwd: str = ROOT, env: dict[str, str] | None = None) -> None:
   print("+", " ".join(cmd), flush=True)
-  subprocess.run(cmd, cwd=cwd, check=True)
+  subprocess.run(cmd, cwd=cwd, check=True, env=env)
 
 
 def _rewrite(rel: str, pattern: str, repl: str) -> int:
@@ -85,6 +88,36 @@ def bump_rust(dry_run: bool) -> str:
   return latest
 
 
+def _maven_latest(artifact: str) -> str:
+  url = f"https://repo1.maven.org/maven2/com/google/adk/{artifact}/maven-metadata.xml"
+  req = urllib.request.Request(url, headers={"User-Agent": "adk-monitor (bump_sdks)"})
+  with urllib.request.urlopen(req, timeout=30) as resp:
+    match = re.search(r"<release>([^<]+)</release>", resp.read().decode())
+  if not match:
+    raise RuntimeError(f"no release in {url}")
+  return match.group(1)
+
+
+def _bump_maven(repo: str, probe: str, artifact_re: str, dry_run: bool) -> str:
+  """Moves `com.google.adk:<artifact_re>:V` in MODULE.bazel to the latest release, then re-pins."""
+  latest = _maven_latest(probe)
+  if dry_run:
+    return latest
+  count = _rewrite("MODULE.bazel", rf'^(\s*"com\.google\.adk:{artifact_re}:)[^"]+(",)$', rf"\g<1>{latest}\2")
+  if not count:
+    raise RuntimeError(f"no com.google.adk pins for {repo} in MODULE.bazel")
+  _run(["bazel", "run", f"@{repo}//:pin"], env=dict(os.environ, REPIN="1"))
+  return latest
+
+
+def bump_java(dry_run: bool) -> str:
+  return _bump_maven("maven_java", "google-adk", r"google-adk(?:-dev|-a2a)?", dry_run)
+
+
+def bump_kotlin(dry_run: bool) -> str:
+  return _bump_maven("maven_kotlin", "google-adk-kotlin-core-jvm", r"google-adk-kotlin-[a-z0-9-]+", dry_run)
+
+
 def main(argv: list[str] | None = None) -> int:
   parser = argparse.ArgumentParser(description=__doc__.split("\n", 1)[0])
   parser.add_argument("--out", help="write the JSON summary here too")
@@ -92,7 +125,10 @@ def main(argv: list[str] | None = None) -> int:
   args = parser.parse_args(argv)
   before = sdk_versions.versions()
   summary = {}
-  for subject, bump in (("python", bump_python), ("go", bump_go), ("rust", bump_rust)):
+  bumps = {"python": bump_python, "go": bump_go, "java": bump_java, "kotlin": bump_kotlin,
+           "rust": bump_rust}
+  for subject in sdk_versions.subjects.active(bumps):
+    bump = bumps[subject]
     try:
       summary[subject] = {"latest": bump(args.dry_run), "ok": True}
     except Exception as e:  # pylint: disable=broad-except
