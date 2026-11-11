@@ -135,16 +135,19 @@ divergences:
     subject: python-to-go
     checks: ["turn :: final.author"]
     reason: adk-python's RemoteA2aAgent turns adk-go's streamed answer (an artifact update without lastChunk) into a partial event and ends with a final event that has no content; against every other server it ends with the answer.
+    issue: https://github.com/google/adk-go/issues/2159
     expires: "2027-01-15"
   - scenario: a2a_cli_transfer_001
     subject: python-to-go
     checks: ["turn :: final.author"]
     reason: Same as a2a_cli_basic_001 (adk-python client, adk-go server) after a transfer to the remote agent.
+    issue: https://github.com/google/adk-go/issues/2159
     expires: "2027-01-15"
   - scenario: a2a_interop_canonical_001
     subject: python-to-go
     checks: ["first turn :: final.author", "second turn :: final.author"]
     reason: Same as a2a_cli_basic_001 (adk-python client, adk-go server).
+    issue: https://github.com/google/adk-go/issues/2159
     expires: "2027-01-15"
 
   # --- A2A: adk-rust server (adk-server 2.3.0 a2a::v1 components) -------------------
